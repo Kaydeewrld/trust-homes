@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { properties } from '../data/properties'
 import { useEffect, useRef, useState } from 'react'
 import CustomDropdown from '../components/CustomDropdown'
+import PropertyMarketingSections from '../components/PropertyMarketingSections'
 import { useAuth } from '../context/AuthContext'
 import { useWallet } from '../context/WalletContext'
 
@@ -694,6 +695,8 @@ function HomePage() {
             ))}
           </div>
         </section>
+
+        <PropertyMarketingSections />
 
       </div>
     </section>
