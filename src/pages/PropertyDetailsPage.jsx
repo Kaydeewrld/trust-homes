@@ -4,8 +4,8 @@ import { properties } from '../data/properties'
 import { useEffect, useMemo, useState } from 'react'
 
 function PropertyDetailsPage() {
-  const { propertyId } = useParams()
-  const property = properties.find((item) => item.id === propertyId)
+  const { id } = useParams()
+  const property = properties.find((item) => item.id === id)
   const { isFavorite, toggleFavorite } = useFavorites()
   const gallery = useMemo(
     () => [

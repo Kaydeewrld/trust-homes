@@ -3,6 +3,9 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        agent: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+      },
       keyframes: {
         rise: {
           '0%': { opacity: 0, transform: 'translateY(12px)' },

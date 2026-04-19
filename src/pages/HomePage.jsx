@@ -1,59 +1,87 @@
-import { useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { properties } from '../data/properties'
 import { useEffect, useRef, useState } from 'react'
+import CustomDropdown from '../components/CustomDropdown'
+import { useAuth } from '../context/AuthContext'
+import { useWallet } from '../context/WalletContext'
 
-function CustomDropdown({ value, options, onChange, className = '' }) {
-  const [open, setOpen] = useState(false)
-  const wrapperRef = useRef(null)
-
-  useEffect(() => {
-    function handleOutsideClick(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
-  }, [])
-
+function HomePageIcon({ type, className = 'h-5 w-5' }) {
+  const common = { className, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }
+  if (type === 'building')
+    return (
+      <svg {...common}>
+        <path d="M4 20h16M7 20V7l5-3 5 3v13M9 10h.01M12 10h.01M15 10h.01M9 13h.01M12 13h.01M15 13h.01" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  if (type === 'home')
+    return (
+      <svg {...common}>
+        <path d="m3 11 9-7 9 7M6 9.5V20h12V9.5M10 20v-5h4v5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'briefcase')
+    return (
+      <svg {...common}>
+        <path d="M8 7V5h8v2M4 9h16v10H4zM4 13h16" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'calendar')
+    return (
+      <svg {...common}>
+        <path d="M7 3v3M17 3v3M4 8h16M5 6h14v14H5z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'spark')
+    return (
+      <svg {...common}>
+        <path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8ZM5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 15l.7 1.5L21 17l-1.3.5L19 19l-.7-1.5L17 17l1.3-.5z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'shield')
+    return (
+      <svg {...common}>
+        <path d="m12 3 7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'clock')
+    return (
+      <svg {...common}>
+        <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'safe')
+    return (
+      <svg {...common}>
+        <path d="M4 6h16v12H4zM9 12h6M12 9v6M6 9h.01M18 9h.01M6 15h.01M18 15h.01" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  if (type === 'support')
+    return (
+      <svg {...common}>
+        <path d="M5 12a7 7 0 0 1 14 0v3a2 2 0 0 1-2 2h-2v-4h4M5 13h4v4H7a2 2 0 0 1-2-2zM12 21v-2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
   return (
-    <div ref={wrapperRef} className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-left text-xs text-blue-100 outline-none transition hover:bg-white/15"
-      >
-        <span>{value}</span>
-        <svg viewBox="0 0 24 24" className={`h-4 w-4 text-blue-100/85 transition ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor">
-          <path d="m7 10 5 5 5-5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-white/20 bg-[#1f49d7] shadow-2xl shadow-blue-950/40 backdrop-blur">
-          {options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                onChange(option)
-                setOpen(false)
-              }}
-              className={`block w-full px-3 py-2 text-left text-xs transition ${
-                option === value ? 'bg-white/15 text-white' : 'text-blue-100 hover:bg-white/10'
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <svg {...common}>
+      <path d="M4 12h4l3 3 6-6 3 3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
+const headerNavLinks = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/explore', label: 'Explore' },
+  { to: '/auctions', label: 'Auctions' },
+  { to: '/saved', label: 'Saved' },
+  { to: '/messages', label: 'Messages', badge: 3 },
+  { to: '/profile', label: 'Profile' },
+]
+
 function HomePage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { balance } = useWallet()
+  const [showWalletBalance, setShowWalletBalance] = useState(true)
   const [listingType, setListingType] = useState('Rent')
   const [propertyType, setPropertyType] = useState('House')
   const [roomCount, setRoomCount] = useState('2 Rooms')
@@ -107,69 +135,7 @@ function HomePage() {
   const minBound = 500000
   const maxBound = 30000000
   const formatNaira = (amount) => `₦ ${new Intl.NumberFormat('en-NG').format(amount)}`
-
-  const Icon = ({ type, className = 'h-5 w-5' }) => {
-    const common = { className, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }
-    if (type === 'building')
-      return (
-        <svg {...common}>
-          <path d="M4 20h16M7 20V7l5-3 5 3v13M9 10h.01M12 10h.01M15 10h.01M9 13h.01M12 13h.01M15 13h.01" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )
-    if (type === 'home')
-      return (
-        <svg {...common}>
-          <path d="m3 11 9-7 9 7M6 9.5V20h12V9.5M10 20v-5h4v5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'briefcase')
-      return (
-        <svg {...common}>
-          <path d="M8 7V5h8v2M4 9h16v10H4zM4 13h16" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'calendar')
-      return (
-        <svg {...common}>
-          <path d="M7 3v3M17 3v3M4 8h16M5 6h14v14H5z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'spark')
-      return (
-        <svg {...common}>
-          <path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8ZM5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 15l.7 1.5L21 17l-1.3.5L19 19l-.7-1.5L17 17l1.3-.5z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'shield')
-      return (
-        <svg {...common}>
-          <path d="m12 3 7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'clock')
-      return (
-        <svg {...common}>
-          <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'safe')
-      return (
-        <svg {...common}>
-          <path d="M4 6h16v12H4zM9 12h6M12 9v6M6 9h.01M18 9h.01M6 15h.01M18 15h.01" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    if (type === 'support')
-      return (
-        <svg {...common}>
-          <path d="M5 12a7 7 0 0 1 14 0v3a2 2 0 0 1-2 2h-2v-4h4M5 13h4v4H7a2 2 0 0 1-2-2zM12 21v-2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    return (
-      <svg {...common}>
-        <path d="M4 12h4l3 3 6-6 3 3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
+  const walletDisplay = `₦${new Intl.NumberFormat('en-NG').format(balance)}`
 
   return (
     <section className="space-y-0 pb-0">
@@ -196,18 +162,99 @@ function HomePage() {
               Search location, property...
             </button>
 
-            <div className="flex items-center gap-2">
-              {['Home', 'Explore', 'Saved', 'Profile'].map((item, index) => (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="hidden items-center gap-1.5 rounded-lg border border-blue-100/90 bg-white/90 px-2.5 py-1.5 shadow-sm sm:flex">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Wallet</span>
+                <span className="min-w-[5.5rem] text-xs font-semibold tabular-nums text-slate-800">
+                  {showWalletBalance ? walletDisplay : '••••••••'}
+                </span>
                 <button
-                  key={item}
-                  onClick={() => (index === 0 ? navigate('/') : navigate(`/${item.toLowerCase()}`))}
-                  className={`rounded-lg px-3 py-1.5 text-xs transition ${
-                    index === 0 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 hover:bg-white/70'
-                  }`}
+                  type="button"
+                  onClick={() => setShowWalletBalance((v) => !v)}
+                  aria-label={showWalletBalance ? 'Hide wallet balance' : 'Show wallet balance'}
+                  className="rounded p-0.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                 >
-                  {item}
+                  {showWalletBalance ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3" strokeWidth="1.8" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
+                      <path
+                        d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path d="m1 1 22 22" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
-              ))}
+              </div>
+
+              <nav className="flex flex-wrap items-center justify-end gap-1">
+                {headerNavLinks
+                  .filter((link) => !(user && link.to === '/profile'))
+                  .map((link) => (
+                    <NavLink
+                      key={link.to}
+                      to={link.to}
+                      end={link.end}
+                      className={({ isActive }) =>
+                        `inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                          isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 hover:bg-white/80'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {link.label}
+                          {link.badge != null && (
+                            <span
+                              className={`min-w-[1rem] rounded-full px-1 py-0.5 text-center text-[10px] font-bold leading-none text-white ${
+                                isActive ? 'bg-white/25' : 'bg-blue-500'
+                              }`}
+                            >
+                              {link.badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
+              </nav>
+
+              {user ? (
+                <NavLink
+                  to="/profile"
+                  title={user.displayName}
+                  className="inline-flex shrink-0 rounded-full p-0.5 ring-2 ring-transparent transition hover:ring-blue-300/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <img
+                    src={user.avatarUrl}
+                    alt=""
+                    className="h-8 w-8 rounded-full object-cover ring-2 ring-slate-200"
+                  />
+                </NavLink>
+              ) : (
+                <NavLink
+                  to="/login"
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Log in
+                </NavLink>
+              )}
+
+              <NavLink
+                to="/add-listing"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500"
+              >
+                <svg viewBox="0 0 24 24" className="mr-1 h-3.5 w-3.5" fill="none" stroke="currentColor">
+                  <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                Add Listing
+              </NavLink>
             </div>
           </div>
         </div>
@@ -241,6 +288,7 @@ function HomePage() {
                 <div className="mt-6 rounded-2xl border border-blue-100 bg-white/95 p-3 text-slate-700 shadow-sm backdrop-blur">
                   <div className="grid gap-2 md:grid-cols-[110px_1fr_110px]">
                     <CustomDropdown
+                      variant="hero"
                       value={listingType}
                       onChange={setListingType}
                       options={['Rent', 'Sale', 'Lease', 'Short Stay']}
@@ -249,6 +297,7 @@ function HomePage() {
                       Your desired location goes here
                     </div>
                     <CustomDropdown
+                      variant="hero"
                       value={propertyType}
                       onChange={setPropertyType}
                       options={['House', 'Apartment', 'Office', 'Commercial']}
@@ -308,6 +357,7 @@ function HomePage() {
                     </div>
 
                     <CustomDropdown
+                      variant="hero"
                       value={roomCount}
                       onChange={setRoomCount}
                       options={['1 Room', '2 Rooms', '3 Rooms', '4+ Rooms']}
@@ -354,7 +404,7 @@ function HomePage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-100 text-blue-700">
-                      <Icon type="building" className="h-4 w-4" />
+                      <HomePageIcon type="building" className="h-4 w-4" />
                     </span>
                     <div>
                       <p className="text-[11px] text-slate-500">Active Listings</p>
@@ -372,7 +422,7 @@ function HomePage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-100 text-amber-700">
-                      <Icon type="clock" className="h-4 w-4" />
+                      <HomePageIcon type="clock" className="h-4 w-4" />
                     </span>
                     <div>
                       <p className="text-[11px] text-slate-500">Average Rent</p>
@@ -395,7 +445,7 @@ function HomePage() {
                 <div className="grid grid-cols-[1fr_auto] items-start gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-100 text-blue-700">
-                      <Icon type="spark" className="h-4 w-4" />
+                      <HomePageIcon type="spark" className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-500">Top Zone</p>
@@ -509,7 +559,7 @@ function HomePage() {
               <article key={category.label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4">
                 <div className="flex items-center gap-3">
                   <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-600">
-                    <Icon type={category.icon} className="h-5 w-5" />
+                    <HomePageIcon type={category.icon} className="h-5 w-5" />
                   </div>
                   <div>
                     <p className="font-medium text-slate-800">{category.label}</p>
@@ -579,9 +629,9 @@ function HomePage() {
                 </button>
               </div>
               <div className="mt-5 flex flex-wrap items-center gap-5 text-xs text-blue-100/90">
-                <span className="inline-flex items-center gap-1.5"><Icon type="shield" className="h-4 w-4" />Verified Agents</span>
-                <span className="inline-flex items-center gap-1.5"><Icon type="clock" className="h-4 w-4" />Fast Response</span>
-                <span className="inline-flex items-center gap-1.5"><Icon type="safe" className="h-4 w-4" />Secure & Safe</span>
+                <span className="inline-flex items-center gap-1.5"><HomePageIcon type="shield" className="h-4 w-4" />Verified Agents</span>
+                <span className="inline-flex items-center gap-1.5"><HomePageIcon type="clock" className="h-4 w-4" />Fast Response</span>
+                <span className="inline-flex items-center gap-1.5"><HomePageIcon type="safe" className="h-4 w-4" />Secure & Safe</span>
               </div>
             </div>
             <div className="relative h-[240px] overflow-hidden rounded-2xl border border-white/20 md:h-[250px]">
@@ -610,7 +660,7 @@ function HomePage() {
             {trustItems.map((item) => (
               <article key={item.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-white text-blue-600 shadow-sm">
-                  <Icon type={item.icon} className="h-5 w-5" />
+                  <HomePageIcon type={item.icon} className="h-5 w-5" />
                 </div>
                 <p className="font-medium text-slate-800">{item.title}</p>
                 <p className="mt-2 text-sm text-slate-500">{item.text}</p>

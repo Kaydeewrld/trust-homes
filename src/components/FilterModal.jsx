@@ -1,4 +1,13 @@
 import { listingPurposes, propertyTypes } from '../data/properties'
+import CustomDropdown from './CustomDropdown'
+
+const bedroomFilterOptions = [
+  { value: 'Any', label: 'Any' },
+  { value: '1', label: '1+' },
+  { value: '2', label: '2+' },
+  { value: '3', label: '3+' },
+  { value: '4', label: '4+' },
+]
 
 function FilterModal({ open, filters, onClose, onApply, onClear, onChange }) {
   if (!open) return null
@@ -26,32 +35,22 @@ function FilterModal({ open, filters, onClose, onApply, onClear, onChange }) {
 
           <div>
             <label className="mb-1 block text-blue-100/90">Property type</label>
-            <select
+            <CustomDropdown
+              variant="modal"
               value={filters.type}
-              onChange={(event) => onChange('type', event.target.value)}
-              className="w-full rounded-xl border border-white/20 bg-white/10 p-3"
-            >
-              {propertyTypes.map((item) => (
-                <option className="bg-blue-950" key={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+              options={propertyTypes}
+              onChange={(v) => onChange('type', v)}
+            />
           </div>
 
           <div>
             <label className="mb-1 block text-blue-100/90">Purpose</label>
-            <select
+            <CustomDropdown
+              variant="modal"
               value={filters.purpose}
-              onChange={(event) => onChange('purpose', event.target.value)}
-              className="w-full rounded-xl border border-white/20 bg-white/10 p-3"
-            >
-              {listingPurposes.map((item) => (
-                <option className="bg-blue-950" key={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+              options={listingPurposes}
+              onChange={(v) => onChange('purpose', v)}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -77,17 +76,12 @@ function FilterModal({ open, filters, onClose, onApply, onClear, onChange }) {
 
           <div>
             <label className="mb-1 block text-blue-100/90">Minimum Bedrooms</label>
-            <select
+            <CustomDropdown
+              variant="modal"
               value={filters.bedrooms}
-              onChange={(event) => onChange('bedrooms', event.target.value)}
-              className="w-full rounded-xl border border-white/20 bg-white/10 p-3"
-            >
-              <option className="bg-blue-950" value="Any">Any</option>
-              <option className="bg-blue-950" value="1">1+</option>
-              <option className="bg-blue-950" value="2">2+</option>
-              <option className="bg-blue-950" value="3">3+</option>
-              <option className="bg-blue-950" value="4">4+</option>
-            </select>
+              options={bedroomFilterOptions}
+              onChange={(v) => onChange('bedrooms', v)}
+            />
           </div>
         </div>
 

@@ -1,4 +1,6 @@
-import { Link, NavLink } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { properties } from '../data/properties'
 
 function formatNaira(amount, purpose) {
@@ -8,498 +10,458 @@ function formatNaira(amount, purpose) {
   return value
 }
 
-const savedSearches = [
-  { id: 's1', label: '3 bedroom apartments in Victoria Island', results: 120, daysAgo: 5 },
-  { id: 's2', label: 'Houses for sale under ₦50M in Lekki', results: 42, daysAgo: 12 },
-  { id: 's3', label: 'Office space in Ikoyi', results: 18, daysAgo: 3 },
+const statItems = [
+  { label: 'Saved Properties', value: 12, tone: 'bg-blue-100 text-blue-600', icon: 'heart' },
+  { label: 'Inquiries', value: 3, tone: 'bg-indigo-100 text-indigo-600', icon: 'chat' },
+  { label: 'Scheduled Visits', value: 2, tone: 'bg-emerald-100 text-emerald-600', icon: 'cal' },
+  { label: 'Active Bids', value: 1, tone: 'bg-amber-100 text-amber-600', icon: 'bid' },
 ]
 
-const recentActivity = [
-  {
-    id: 'a1',
-    text: 'You saved Luxury 5 Bedroom Duplex',
-    sub: 'Lekki Phase 1',
-    time: '2 hours ago',
-    thumb: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=120&q=60',
-    icon: 'heart',
-  },
-  {
-    id: 'a2',
-    text: 'You scheduled a viewing',
-    sub: 'Marina Glassfront Residence',
-    time: 'Yesterday',
-    thumb: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=120&q=60',
-    icon: 'cal',
-  },
-  {
-    id: 'a3',
-    text: 'You placed a bid',
-    sub: 'Auction · Skyline Trade Tower',
-    time: '3 days ago',
-    thumb: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=120&q=60',
-    icon: 'bid',
-  },
-  {
-    id: 'a4',
-    text: 'You contacted John Okafor',
-    sub: 'Messages',
-    time: '5 days ago',
-    thumb: null,
-    icon: 'msg',
-  },
+const tabItems = ['Overview', 'Saved Properties', 'Inquiries', 'Scheduled Visits', 'Bids', 'Settings']
+
+const activityItems = [
+  { id: 'a1', text: 'Saved a property in Ikoyi, Lagos', time: '2 hours ago', kind: 'heart' },
+  { id: 'a2', text: 'Sent an inquiry for Luxury 4-Bedroom Duplex', time: '1 day ago', kind: 'chat' },
+  { id: 'a3', text: 'Scheduled a visit for Modern Apartment', time: '3 days ago', kind: 'cal' },
 ]
 
-const stats = [
-  { label: 'Saved Properties', value: 18 },
-  { label: 'Saved Searches', value: 4 },
-  { label: 'Upcoming Viewings', value: 3 },
-  { label: 'Active Bids', value: 2 },
-  { label: 'Properties Listed', value: 1 },
+const inquiryItems = [
+  { id: 'iq-1', propertyId: 'th-001', text: 'Is this still available and can we negotiate on closing price?', status: 'Awaiting reply', time: '5h ago' },
+  { id: 'iq-2', propertyId: 'th-002', text: 'Can I schedule a tour this Friday evening?', status: 'Agent replied', time: '1d ago' },
+  { id: 'iq-3', propertyId: 'th-004', text: 'Please share service charge and title details.', status: 'Awaiting reply', time: '2d ago' },
 ]
 
-function NavIcon({ type, className = 'h-4 w-4' }) {
-  switch (type) {
-    case 'overview':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )
-    case 'building':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M3 21h18M6 21V7l6-4 6 4v14M10 21v-4h4v4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    case 'heart':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    case 'search':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <circle cx="11" cy="11" r="7" strokeWidth="1.8" />
-          <path d="M20 20l-3-3" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )
-    case 'message':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    case 'eye':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" strokeWidth="1.8" />
-          <circle cx="12" cy="12" r="3" strokeWidth="1.8" />
-        </svg>
-      )
-    case 'hammer':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    case 'card':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <rect x="2" y="5" width="20" height="14" rx="2" strokeWidth="1.8" />
-          <path d="M2 10h20" strokeWidth="1.8" />
-        </svg>
-      )
-    case 'star':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    case 'settings':
-      return (
-        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
-          <circle cx="12" cy="12" r="3" strokeWidth="1.8" />
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )
-    default:
-      return <span className={className} />
-  }
-}
+const visitItems = [
+  { id: 'vs-1', propertyId: 'th-001', day: 'Fri, Apr 19', time: '10:30 AM', status: 'Confirmed' },
+  { id: 'vs-2', propertyId: 'th-006', day: 'Mon, Apr 22', time: '1:00 PM', status: 'Pending' },
+]
 
-function ActivityIcon({ type }) {
-  const c = 'h-4 w-4 text-blue-600'
-  if (type === 'heart')
+const bidItems = [
+  { id: 'bd-1', propertyId: 'th-009', myBid: 338000000, currentBid: 342000000, ends: 'Ends in 1d 5h' },
+]
+
+function TinyIcon({ kind, className = 'h-4 w-4' }) {
+  if (kind === 'overview') {
     return (
-      <svg viewBox="0 0 24 24" className={c} fill="none" stroke="currentColor">
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
+        <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" strokeWidth="1.8" />
+      </svg>
+    )
+  }
+  if (kind === 'heart') {
+    return (
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeWidth="1.8" />
       </svg>
     )
-  if (type === 'cal')
+  }
+  if (kind === 'chat') {
     return (
-      <svg viewBox="0 0 24 24" className={c} fill="none" stroke="currentColor">
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" strokeWidth="1.8" />
+      </svg>
+    )
+  }
+  if (kind === 'cal') {
+    return (
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
         <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="1.8" />
         <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
-  if (type === 'bid')
+  }
+  if (kind === 'settings') {
     return (
-      <svg viewBox="0 0 24 24" className={c} fill="none" stroke="currentColor">
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" strokeWidth="1.8" />
+      <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="3" strokeWidth="1.8" />
+        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
+  }
   return (
-    <svg viewBox="0 0 24 24" className={c} fill="none" stroke="currentColor">
-      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" strokeWidth="1.8" />
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" strokeWidth="1.8" />
     </svg>
   )
 }
 
 function ProfilePage() {
-  const savedStrip = properties.slice(0, 6)
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+  const displayName = user?.displayName ?? 'Kaydee Wisdom'
+  const emailDisplay = user?.email ?? 'kaydeewrld@gmail.com'
+  const avatarSrc =
+    user?.avatarUrl ??
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=220&q=80'
+
+  const viewed = properties.slice(0, 4)
+  const inquiries = inquiryItems
+    .map((item) => ({ ...item, property: properties.find((p) => p.id === item.propertyId) }))
+    .filter((item) => item.property)
+  const visits = visitItems
+    .map((item) => ({ ...item, property: properties.find((p) => p.id === item.propertyId) }))
+    .filter((item) => item.property)
+  const bids = bidItems
+    .map((item) => ({ ...item, property: properties.find((p) => p.id === item.propertyId) }))
+    .filter((item) => item.property)
+  const fallbackHeroImage =
+    properties[0]?.image ||
+    'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=1800&q=80'
+  const [heroImage, setHeroImage] = useState(fallbackHeroImage)
+  const [activeTab, setActiveTab] = useState('Overview')
+  const filteredActivity = useMemo(() => activityItems, [])
+  const showViewed = activeTab === 'Overview' || activeTab === 'Saved Properties'
+  const showActivity = activeTab === 'Overview'
+  const showAccount = activeTab === 'Overview'
+  const showCta = activeTab === 'Overview'
+  const isSplitLayout = activeTab === 'Overview'
 
   return (
-    <div className="flex w-full max-w-[1440px] flex-col gap-6 pb-10 lg:flex-row lg:items-start">
-      {/* Sidebar */}
-      <aside className="w-full shrink-0 space-y-4 lg:sticky lg:top-24 lg:w-[260px]">
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Account</p>
-          <nav className="space-y-0.5">
-            <NavLink
-              to="/profile"
-              end
-              className={({ isActive }) =>
-                `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm font-medium transition ${
-                  isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
-                }`
+    <section className="w-full bg-[#f6f7fb] px-0 pb-8 pt-2 text-slate-900">
+      <div className="mx-auto w-full max-w-[1500px] space-y-3">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="relative h-40 overflow-hidden bg-slate-200 md:h-44">
+            <img
+              src={heroImage}
+              alt=""
+              className="block h-full w-full object-cover object-center"
+              onError={() =>
+                setHeroImage(
+                  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=80',
+                )
               }
-            >
-              <NavIcon type="overview" />
-              Profile Overview
-            </NavLink>
-            <Link
-              to="/explore"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="building" />
-              My Properties
-            </Link>
-            <Link
-              to="/saved"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="heart" />
-              Saved
-            </Link>
-            <a
-              href="#your-searches"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="search" />
-              Searches
-            </a>
-            <Link
-              to="/messages"
-              className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <span className="flex items-center gap-2.5">
-                <NavIcon type="message" />
-                Messages
-              </span>
-              <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">3</span>
-            </Link>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="eye" />
-              Viewings
-            </button>
-            <Link
-              to="/auctions"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="hammer" />
-              Bids
-            </Link>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="card" />
-              Transactions
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="star" />
-              Reviews
-            </button>
-            <a
-              href="#account-settings"
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              <NavIcon type="settings" />
-              Settings
-            </a>
-          </nav>
-        </div>
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/94 via-white/70 to-white/18" />
 
-        <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-600 to-indigo-700 p-4 text-white shadow-sm">
-          <p className="text-sm font-semibold">TrustedHome Pro</p>
-          <ul className="mt-2 space-y-1.5 text-[11px] text-blue-100">
-            <li>• Unlimited saved searches</li>
-            <li>• Priority support</li>
-            <li>• Featured listing boosts</li>
-          </ul>
-          <button
-            type="button"
-            className="mt-3 w-full rounded-lg bg-white py-2 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50"
-          >
-            Upgrade Now
-          </button>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-900">Need help?</p>
-          <p className="mt-1 text-xs text-slate-500">Our team is here for account and listing questions.</p>
-          <Link
-            to="/messages"
-            className="mt-3 block w-full rounded-lg border border-slate-200 bg-white py-2 text-center text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            Contact Support
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="min-w-0 flex-1 space-y-6">
-        {/* Hero */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-[#0f172a] shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-stretch">
-            <div className="relative flex flex-1 flex-col justify-between p-6 md:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex gap-4">
-                  <div className="relative shrink-0">
-                    <img
-                      src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80"
-                      alt=""
-                      className="h-20 w-20 rounded-full object-cover ring-4 ring-white/10"
-                    />
-                    <span
-                      className="absolute bottom-0 right-0 grid h-6 w-6 place-items-center rounded-full bg-blue-600 ring-2 ring-[#0f172a]"
-                      title="Verified"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-white" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                      </svg>
+            <div className="absolute inset-0 flex items-start justify-between p-4 md:p-5">
+              <div className="flex items-start gap-4">
+                <div className="relative shrink-0">
+                  <img src={avatarSrc} alt="" className="h-16 w-16 rounded-full border-2 border-white object-cover shadow-sm md:h-20 md:w-20" />
+                  <span className="absolute bottom-0 right-0 grid h-5 w-5 place-items-center rounded-full bg-blue-600 ring-2 ring-white">
+                    <svg viewBox="0 0 24 24" className="h-3 w-3 text-white" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="pt-0.5">
+                  <h1 className="flex items-center gap-1 text-lg font-semibold leading-tight text-slate-900 md:text-2xl">
+                    {displayName}
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-blue-600 md:h-5 md:w-5" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
+                  </h1>
+                  <p className="mt-0.5 text-xs text-slate-600 md:text-sm">{emailDisplay}</p>
+                  <p className="mt-1 line-clamp-1 max-w-xl text-xs text-slate-600 md:line-clamp-none md:text-sm">
+                    Real estate enthusiast. Exploring opportunities and building my future space.
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-slate-500 md:mt-2 md:text-xs">
+                    <span className="inline-flex items-center gap-1">
+                      <TinyIcon kind="overview" className="h-3.5 w-3.5" />
+                      Lagos, Nigeria
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <TinyIcon kind="cal" className="h-3.5 w-3.5" />
+                      Joined April 2024
                     </span>
                   </div>
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight text-white md:text-2xl">Daniel Emmanuel</h1>
-                    <p className="mt-1 text-sm text-slate-300">daniel.emmanuel@trustedhome.app</p>
-                    <p className="text-sm text-slate-300">+234 803 456 7890</p>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" strokeWidth="1.8" />
-                        <circle cx="12" cy="10" r="3" strokeWidth="1.8" />
-                      </svg>
-                      Lagos, Nigeria
-                    </p>
-                  </div>
                 </div>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
-                >
+              </div>
+
+              <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                {user && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout()
+                      navigate('/')
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 md:px-4 md:py-2 md:text-sm"
+                  >
+                    Log out
+                  </button>
+                )}
+                <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 md:px-4 md:py-2 md:text-sm">
                   Edit Profile
                 </button>
               </div>
-
-              <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/10 pt-6 sm:grid-cols-3 lg:grid-cols-5">
-                {stats.map((s) => (
-                  <div key={s.label} className="text-center md:text-left">
-                    <p className="text-2xl font-bold tabular-nums text-white">{s.value}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">{s.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="relative min-h-[200px] md:w-[38%] md:min-h-[280px]">
-              <img
-                src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=900&q=80"
-                alt=""
-                className="h-full w-full object-cover"
-              />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0f172a]/80 via-transparent to-transparent md:bg-gradient-to-l" />
             </div>
           </div>
         </div>
 
-        {/* Saved properties */}
-        <section id="saved-properties" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-slate-900">Saved Properties</h2>
-            <Link to="/saved" className="text-xs font-medium text-blue-600 hover:underline">
-              View all
-            </Link>
-          </div>
-          <div className="thin-scroll flex gap-4 overflow-x-auto pb-1">
-            {savedStrip.map((p) => (
-              <Link
-                key={p.id}
-                to={`/property/${p.id}`}
-                className="w-[260px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md"
-              >
-                <div className="relative aspect-[4/3]">
-                  <img src={p.image} alt="" className="h-full w-full object-cover" />
-                  <span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-red-500 shadow-sm">
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
-                  </span>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="grid grid-cols-2 divide-x divide-y divide-slate-200 md:grid-cols-4 md:divide-y-0">
+            {statItems.map((item) => (
+              <article key={item.label} className="flex items-center gap-2.5 p-3">
+                <span className={`grid h-9 w-9 place-items-center rounded-lg ${item.tone}`}>
+                  <TinyIcon kind={item.icon} className="h-3.5 w-3.5" />
+                </span>
+                <div>
+                  <p className="text-xl font-semibold leading-none text-slate-900">{item.value}</p>
+                  <p className="mt-0.5 text-xs text-slate-600">{item.label}</p>
                 </div>
-                <div className="p-3">
-                  <p className="text-sm font-semibold text-blue-600">{formatNaira(p.price, p.purpose)}</p>
-                  <p className="mt-0.5 line-clamp-1 text-sm font-medium text-slate-900">{p.title}</p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{p.location}</p>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-500">
-                    {p.bedrooms > 0 ? (
-                      <>
-                        <span>{p.bedrooms} beds</span>
-                        <span>·</span>
-                      </>
-                    ) : null}
-                    <span>{p.bathrooms} baths</span>
-                    <span>·</span>
-                    <span>{p.area.toLocaleString()} ft²</span>
-                  </div>
-                  <p className="mt-2 text-[10px] text-slate-400">Saved 2 weeks ago</p>
-                </div>
-              </Link>
+              </article>
             ))}
           </div>
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Recent activity */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-900">Recent Activity</h2>
-            <ul className="mt-4 divide-y divide-slate-100">
-              {recentActivity.map((a) => (
-                <li key={a.id} className="flex gap-3 py-3 first:pt-0">
-                  {a.thumb ? (
-                    <img src={a.thumb} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-                      <ActivityIcon type={a.icon} />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-900">{a.text}</p>
-                    <p className="text-xs text-slate-500">{a.sub}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">{a.time}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Your searches */}
-          <section id="your-searches" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-900">Your Searches</h2>
-            <ul className="mt-4 space-y-3">
-              {savedSearches.map((s) => (
-                <li
-                  key={s.id}
-                  className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-800">{s.label}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {s.results} results · Saved {s.daysAgo} {s.daysAgo === 1 ? 'day' : 'days'} ago
-                    </p>
-                  </div>
-                  <Link to="/explore" className="shrink-0 text-xs font-medium text-blue-600 hover:underline">
-                    Run
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Account settings */}
-          <section id="account-settings" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-900">Account Settings</h2>
-            <ul className="mt-3 divide-y divide-slate-100">
-              {[
-                { label: 'Personal Information', icon: 'user' },
-                { label: 'Change Password', icon: 'lock' },
-                { label: 'Notification Preferences', icon: 'bell' },
-                { label: 'Privacy & Security', icon: 'shield' },
-                { label: 'Connected Accounts', icon: 'link' },
-              ].map((item) => (
-                <li key={item.label}>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between py-3 text-left text-sm text-slate-700 transition hover:text-blue-600"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="text-slate-400">→</span>
-                      {item.label}
-                    </span>
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-300" fill="none" stroke="currentColor">
-                      <path d="M9 18l6-6-6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Verification */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-900">Verification Status</h2>
-            <p className="mt-1 text-xs text-slate-500">Your account is verified for safer transactions.</p>
-            <ul className="mt-4 space-y-3">
-              {[
-                'Email Address',
-                'Phone Number',
-                'Identity Verification',
-                'Payment Method · **** **** **** 2345',
-              ].map((label) => (
-                <li key={label} className="flex items-center gap-2 text-sm text-slate-700">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                    </svg>
-                  </span>
-                  {label}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-
-        {/* List CTA */}
-        <div className="flex flex-col items-stretch justify-between gap-4 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-5 shadow-sm sm:flex-row sm:items-center">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">List your property</h3>
-            <p className="mt-1 text-sm text-slate-600">Reach thousands of buyers and renters across Nigeria.</p>
+        <div className="rounded-2xl border border-slate-200 bg-white px-3 shadow-sm">
+          <div className="thin-scroll flex items-center gap-2 overflow-x-auto py-2">
+            {tabItems.map((tab, index) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm ${
+                  activeTab === tab ? 'bg-amber-50 text-amber-700' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <TinyIcon kind={index === 0 ? 'overview' : index === 1 ? 'heart' : index === 2 ? 'chat' : index === 3 ? 'cal' : index === 4 ? 'bid' : 'settings'} className="h-3.5 w-3.5" />
+                {tab}
+              </button>
+            ))}
           </div>
-          <Link
-            to="/explore"
-            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
-          >
-            List a Property
-          </Link>
+        </div>
+
+        <div className={`grid gap-4 ${isSplitLayout ? 'lg:grid-cols-[1.8fr_1fr]' : 'grid-cols-1'}`}>
+          <div className="space-y-4">
+            {showViewed && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-900">Recently Viewed</h3>
+                <Link to="/saved" className="text-sm font-medium text-blue-600 hover:underline">
+                  View all
+                </Link>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {viewed.map((p) => (
+                  <Link key={p.id} to={`/property/${p.id}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow">
+                    <div className="relative">
+                      <img src={p.image} alt={p.title} className="h-28 w-full object-cover" />
+                      <span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {p.purpose === 'Sale' ? 'For Sale' : p.purpose === 'Rent' ? 'For Rent' : p.purpose}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 p-2.5">
+                      <p className="line-clamp-1 text-sm font-medium text-slate-900">{p.title}</p>
+                      <p className="line-clamp-1 text-xs text-slate-500">{p.location}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-800">{formatNaira(p.price, p.purpose)}</p>
+                        <TinyIcon kind="heart" className="h-4 w-4 text-slate-400" />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+            )}
+
+            {showActivity && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-900">Recent Activity</h3>
+                <Link to="/messages" className="text-sm font-medium text-blue-600 hover:underline">
+                  View all
+                </Link>
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {filteredActivity.map((item) => (
+                  <li key={item.id} className="flex items-center gap-3 py-3">
+                    <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-50">
+                      <TinyIcon kind={item.kind} className="h-4 w-4 text-blue-600" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-slate-700">{item.text}</p>
+                      <p className="text-xs text-slate-400">{item.time}</p>
+                    </div>
+                    <span className="text-slate-300">›</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            )}
+
+            {activeTab === 'Inquiries' && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-900">Inquiries</h3>
+                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{inquiries.length} open</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {inquiries.map((item) => (
+                  <article key={item.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <img src={item.property.image} alt={item.property.title} className="h-28 w-full object-cover" />
+                    <div className="space-y-2 p-3">
+                      <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.property.title}</p>
+                      <p className="line-clamp-1 text-xs text-slate-500">{item.property.location}</p>
+                      <p className="line-clamp-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600">{item.text}</p>
+                      <div className="flex items-center justify-between">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${item.status.includes('replied') ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          {item.status}
+                        </span>
+                        <span className="text-[11px] text-slate-400">{item.time}</span>
+                      </div>
+                      <Link to="/messages" className="inline-flex rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                        Open chat
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+            )}
+
+            {activeTab === 'Scheduled Visits' && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-900">Scheduled Visits</h3>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{visits.length} visits</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {visits.map((item) => (
+                  <article key={item.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <img src={item.property.image} alt={item.property.title} className="h-28 w-full object-cover" />
+                    <div className="space-y-2 p-3">
+                      <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.property.title}</p>
+                      <p className="line-clamp-1 text-xs text-slate-500">{item.property.location}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{item.day}</span>
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{item.time}</span>
+                        <span className={`rounded-md px-2 py-1 font-medium ${item.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          {item.status}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+            )}
+
+            {activeTab === 'Bids' && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-900">Your Bids</h3>
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{bids.length} active</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {bids.map((item) => (
+                  <article key={item.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <img src={item.property.image} alt={item.property.title} className="h-28 w-full object-cover" />
+                    <div className="space-y-2 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{item.property.title}</p>
+                        <p className="text-xs text-slate-500">{item.property.location}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{item.ends}</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg bg-blue-50 p-2.5">
+                        <p className="text-[11px] text-blue-600">Your bid</p>
+                        <p className="text-sm font-semibold text-blue-700">{formatNaira(item.myBid, 'Sale')}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-2.5">
+                        <p className="text-[11px] text-slate-500">Current highest</p>
+                        <p className="text-sm font-semibold text-slate-700">{formatNaira(item.currentBid, 'Sale')}</p>
+                      </div>
+                    </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+            )}
+
+            {activeTab === 'Settings' && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-slate-900">Settings</h3>
+                <button type="button" className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
+                  Save Changes
+                </button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <article className="rounded-xl border border-slate-200 p-3">
+                  <h4 className="text-sm font-semibold text-slate-800">Account Preferences</h4>
+                  <ul className="mt-3 divide-y divide-slate-100">
+                    {[
+                      'Personal Information',
+                      'Change Password',
+                      'Connected Accounts',
+                      'Privacy & Security',
+                    ].map((label) => (
+                      <li key={label}>
+                        <button type="button" className="flex w-full items-center justify-between py-2.5 text-left text-sm text-slate-700 hover:text-blue-600">
+                          <span>{label}</span>
+                          <span className="text-slate-300">›</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+
+                <article className="rounded-xl border border-slate-200 p-3">
+                  <h4 className="text-sm font-semibold text-slate-800">Notifications</h4>
+                  <div className="mt-3 space-y-2">
+                    {[
+                      ['Price drop alerts', true],
+                      ['New property matches', true],
+                      ['Visit reminders', true],
+                      ['Bid updates', false],
+                    ].map(([label, on]) => (
+                      <div key={label} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                        <p className="text-sm text-slate-700">{label}</p>
+                        <span className={`inline-flex h-5 w-9 items-center rounded-full p-0.5 ${on ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'}`}>
+                          <span className="h-4 w-4 rounded-full bg-white" />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </div>
+            </section>
+            )}
+          </div>
+
+          {isSplitLayout && <div className="space-y-4">
+            {showAccount && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-900">Account Information</h3>
+              <div className="mt-3 divide-y divide-slate-100 text-sm">
+                {[
+                  ['Full Name', 'Kaydee Wisdom'],
+                  ['Email', 'kaydeewrld@gmail.com'],
+                  ['Phone', '+234 810 123 4567'],
+                  ['Location', 'Lagos, Nigeria'],
+                  ['Member Since', 'April 2024'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between py-2.5">
+                    <p className="text-slate-500">{k}</p>
+                    <p className="font-medium text-slate-700">{v}</p>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between py-2.5">
+                  <p className="text-slate-500">Account Status</p>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Active</span>
+                </div>
+              </div>
+            </section>
+            )}
+
+            {showCta && (
+            <section className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-100 p-5 shadow-sm">
+              <h3 className="text-3xl font-semibold tracking-tight text-slate-900">List your property</h3>
+              <p className="mt-2 text-sm text-slate-600">Reach thousands of verified buyers and renters today.</p>
+              <Link to="/add-listing" className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
+                List Property
+              </Link>
+            </section>
+            )}
+          </div>}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 

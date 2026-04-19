@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { useWallet } from '../context/WalletContext'
 
 const links = [
@@ -12,35 +13,44 @@ const links = [
 
 function SiteHeader() {
   const { balance } = useWallet()
+  const { user } = useAuth()
   const [showWalletBalance, setShowWalletBalance] = useState(true)
+  const location = useLocation()
+  const isAddListingRoute = location.pathname.startsWith('/add-listing')
+  const isProfileRoute = location.pathname === '/profile'
+  const lightHeader = isProfileRoute || isAddListingRoute
 
   const formattedBalance = `₦${new Intl.NumberFormat('en-NG').format(balance)}`
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/15 bg-[#081746]/95 px-4 py-3 backdrop-blur md:px-6">
+    <header
+      className={`sticky top-0 z-40 px-4 py-3 backdrop-blur md:px-6 ${
+        lightHeader ? 'border-b border-slate-200 bg-white/95 text-slate-900' : 'border-b border-white/15 bg-[#081746]/95'
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-500/25 text-blue-100">
+        <NavLink to="/" className="flex items-center gap-2 rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-blue-400/60">
+          <div className={`grid h-8 w-8 place-items-center rounded-lg ${lightHeader ? 'bg-blue-100 text-blue-600' : 'bg-blue-500/25 text-blue-100'}`}>
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
               <path d="M3 10.5 12 3l9 7.5M6 9v11h12V9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <p className="text-base font-semibold text-white">
-            Trusted<span className="text-blue-300">Home</span>
+          <p className={`text-base font-semibold ${lightHeader ? 'text-slate-900' : 'text-white'}`}>
+            Trusted<span className={lightHeader ? 'text-blue-600' : 'text-blue-300'}>Home</span>
           </p>
-        </div>
+        </NavLink>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-blue-200/90">Wallet</span>
-            <span className="min-w-[5.5rem] text-xs font-semibold tabular-nums text-white">
+          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${lightHeader ? 'border border-slate-200 bg-slate-50' : 'border border-white/20 bg-white/10'}`}>
+            <span className={`text-[10px] font-medium uppercase tracking-wide ${lightHeader ? 'text-slate-500' : 'text-blue-200/90'}`}>Wallet</span>
+            <span className={`min-w-[5.5rem] text-xs font-semibold tabular-nums ${lightHeader ? 'text-slate-800' : 'text-white'}`}>
               {showWalletBalance ? formattedBalance : '••••••••'}
             </span>
             <button
               type="button"
               onClick={() => setShowWalletBalance((v) => !v)}
               aria-label={showWalletBalance ? 'Hide wallet balance' : 'Show wallet balance'}
-              className="rounded p-0.5 text-blue-100 transition hover:bg-white/15 hover:text-white"
+              className={`rounded p-0.5 transition ${lightHeader ? 'text-slate-500 hover:bg-slate-200 hover:text-slate-800' : 'text-blue-100 hover:bg-white/15 hover:text-white'}`}
             >
               {showWalletBalance ? (
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
@@ -63,7 +73,13 @@ function SiteHeader() {
                 to={link.to}
                 className={({ isActive }) =>
                   `inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs transition ${
-                    isActive ? 'bg-blue-500/25 text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white'
+                    isActive
+                      ? lightHeader
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'bg-blue-500/25 text-white'
+                      : lightHeader
+                        ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        : 'text-blue-100/80 hover:bg-white/10 hover:text-white'
                   }`
                 }
               >
@@ -75,15 +91,60 @@ function SiteHeader() {
                 )}
               </NavLink>
             ))}
+            {!user && (
+              <NavLink
+                to="/profile"
+                className={({ isActive }) =>
+                  `rounded-lg px-3 py-1.5 text-xs transition ${
+                    isActive
+                      ? lightHeader
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'bg-blue-500/25 text-white'
+                      : lightHeader
+                        ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        : 'text-blue-100/80 hover:bg-white/10 hover:text-white'
+                  }`
+                }
+              >
+                Profile
+              </NavLink>
+            )}
+            {user ? (
+              <NavLink
+                to="/profile"
+                title={user.displayName}
+                className="ml-1 inline-flex shrink-0 items-center rounded-full p-0.5 ring-2 ring-transparent transition hover:ring-blue-300/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+              >
+                <img
+                  src={user.avatarUrl}
+                  alt=""
+                  className={`h-8 w-8 rounded-full object-cover ${lightHeader ? 'ring-2 ring-slate-200' : 'ring-2 ring-white/30'}`}
+                />
+              </NavLink>
+            ) : (
+              <NavLink
+                to="/login"
+                className={`ml-1 inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                  lightHeader
+                    ? 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
+                    : 'border-white/25 bg-white/10 text-white hover:bg-white/15'
+                }`}
+              >
+                Log in
+              </NavLink>
+            )}
             <NavLink
-              to="/profile"
-              className={({ isActive }) =>
-                `rounded-lg px-3 py-1.5 text-xs transition ${
-                  isActive ? 'bg-blue-500/25 text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white'
-                }`
-              }
+              to="/add-listing"
+              className={`ml-1 inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                lightHeader
+                  ? 'bg-blue-600 text-white hover:bg-blue-500'
+                  : 'bg-white text-blue-700 hover:bg-blue-50'
+              }`}
             >
-              Profile
+              <svg viewBox="0 0 24 24" className="mr-1 h-3.5 w-3.5" fill="none" stroke="currentColor">
+                <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Add Listing
             </NavLink>
           </nav>
         </div>

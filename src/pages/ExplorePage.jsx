@@ -248,7 +248,7 @@ function ExplorePage() {
               <div className="space-y-2 text-xs text-slate-600">
                 {['All', 'Apartment', 'House', 'Office', 'Short Stay', 'New Development'].map((type) => (
                   <label key={type} className="flex items-center gap-2">
-                    <input
+              <input
                       type="radio"
                       checked={type === 'New Development' ? filters.type === 'Commercial' : filters.type === type || (type === 'All' && filters.type === 'All')}
                       onChange={() => setFilters((current) => ({ ...current, type: type === 'New Development' ? 'Commercial' : type }))}
@@ -273,7 +273,7 @@ function ExplorePage() {
                       width: `${((maxPriceValue - minPriceValue) / (maxBound - minBound)) * 100}%`,
                     }}
                   />
-                </div>
+            </div>
                 <div className="relative h-1">
                   <input
                     type="range"
@@ -307,10 +307,10 @@ function ExplorePage() {
                     }}
                     className="range-thumb absolute -top-2 left-0 z-10 w-full cursor-pointer appearance-none bg-transparent"
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    value={filters.minPrice}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                value={filters.minPrice}
                     onChange={(event) =>
                       setFilters((current) => ({
                         ...current,
@@ -327,9 +327,9 @@ function ExplorePage() {
                     }
                     placeholder="₦0"
                     className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs"
-                  />
-                  <input
-                    value={filters.maxPrice}
+              />
+              <input
+                value={filters.maxPrice}
                     onChange={(event) =>
                       setFilters((current) => ({
                         ...current,
@@ -408,7 +408,7 @@ function ExplorePage() {
               <p className="mb-2 font-medium text-slate-700">Bathrooms</p>
               <div className="grid grid-cols-5 gap-1 text-xs">
                 {['Any', '1+', '2+', '3+', '4+'].map((item) => (
-                  <button
+            <button
                     key={item}
                     onClick={() => {
                       setActiveBathrooms(item)
@@ -417,7 +417,7 @@ function ExplorePage() {
                     className={`rounded-lg px-2 py-1.5 ${activeBathrooms === item ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-slate-50 text-slate-600'}`}
                   >
                     {item}
-                  </button>
+            </button>
                 ))}
               </div>
             </div>
@@ -482,12 +482,12 @@ function ExplorePage() {
                 >
                   Grid
                 </button>
-                <button
+            <button
                   onClick={() => setViewMode('Map')}
                   className={`rounded-lg px-3 py-2 text-xs ${viewMode === 'Map' ? 'bg-blue-600 text-white' : chipBtn}`}
                 >
                   Map
-                </button>
+            </button>
               </div>
             </div>
           </div>

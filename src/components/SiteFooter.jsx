@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 function SiteFooter() {
   return (
     <footer className="border-t border-white/15 bg-gradient-to-b from-[#071a4a] via-[#06153d] to-[#040c25] px-4 py-8 text-blue-100/80 md:px-6">
@@ -28,20 +30,36 @@ function SiteFooter() {
           <div>
             <p className="text-sm font-semibold text-white">Company</p>
             <div className="mt-3 space-y-2 text-sm">
-              <a href="#" className="block hover:text-white">About Us</a>
-              <a href="#" className="block hover:text-white">Our Agents</a>
-              <a href="#" className="block hover:text-white">Careers</a>
-              <a href="#" className="block hover:text-white">Contact</a>
+              <Link to="/" className="block hover:text-white">
+                About Us
+              </Link>
+              <Link to="/profile" className="block hover:text-white">
+                Our Agents
+              </Link>
+              <Link to="/explore" className="block hover:text-white">
+                Careers
+              </Link>
+              <Link to="/messages" className="block hover:text-white">
+                Contact
+              </Link>
             </div>
           </div>
 
           <div>
             <p className="text-sm font-semibold text-white">Explore</p>
             <div className="mt-3 space-y-2 text-sm">
-              <a href="#" className="block hover:text-white">Properties</a>
-              <a href="#" className="block hover:text-white">Auctions</a>
-              <a href="#" className="block hover:text-white">Home Loans</a>
-              <a href="#" className="block hover:text-white">Neighborhoods</a>
+              <Link to="/explore" className="block hover:text-white">
+                Properties
+              </Link>
+              <Link to="/auctions" className="block hover:text-white">
+                Auctions
+              </Link>
+              <Link to="/explore" className="block hover:text-white">
+                Home Loans
+              </Link>
+              <Link to="/explore" className="block hover:text-white">
+                Neighborhoods
+              </Link>
             </div>
           </div>
 
@@ -64,10 +82,18 @@ function SiteFooter() {
         <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs md:flex-row md:items-center md:justify-between">
           <p>© 2026 TrustedHome. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <a href="#" className="hover:text-white">Terms</a>
-            <a href="#" className="hover:text-white">Privacy</a>
-            <a href="#" className="hover:text-white">Support</a>
-            <a href="#" className="hover:text-white">Cookies</a>
+            <a href="#terms" className="hover:text-white">
+              Terms
+            </a>
+            <a href="#privacy" className="hover:text-white">
+              Privacy
+            </a>
+            <Link to="/messages" className="hover:text-white">
+              Support
+            </Link>
+            <a href="#cookies" className="hover:text-white">
+              Cookies
+            </a>
           </div>
         </div>
       </div>
