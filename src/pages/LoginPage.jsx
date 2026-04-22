@@ -329,9 +329,9 @@ export default function LoginPage() {
                   />
                   <span className="text-[14px] text-slate-600">Remember me</span>
                 </label>
-                <a href="#forgot" className="shrink-0 text-[14px] font-semibold hover:underline" style={{ color: BRAND }}>
+                <Link to="/forgot-password" className="shrink-0 text-[14px] font-semibold hover:underline" style={{ color: BRAND }}>
                   Forgot password?
-                </a>
+                </Link>
               </div>
 
               <button

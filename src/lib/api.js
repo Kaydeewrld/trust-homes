@@ -63,6 +63,14 @@ export function authGoogleLogin(payload) {
   return apiFetch('/auth/google', { method: 'POST', body: payload })
 }
 
+export function authForgotPasswordRequest(payload) {
+  return apiFetch('/auth/forgot-password', { method: 'POST', body: payload })
+}
+
+export function authForgotPasswordReset(payload) {
+  return apiFetch('/auth/forgot-password/reset', { method: 'POST', body: payload })
+}
+
 export function authRequestPasswordChangeOtp(token) {
   return apiFetch('/auth/otp/password-change', { method: 'POST', token })
 }

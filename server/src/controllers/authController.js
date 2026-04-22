@@ -44,6 +44,16 @@ const changePasswordSchema = z.object({
   otp: z.string().regex(/^\d{6}$/),
 })
 
+const forgotPasswordRequestSchema = z.object({
+  email: z.string().email(),
+})
+
+const forgotPasswordResetSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().regex(/^\d{6}$/),
+  newPassword: strongPassword,
+})
+
 export async function register(req, res, next) {
   try {
     const body = registerSchema.parse(req.body)
@@ -113,6 +123,28 @@ export async function changePassword(req, res, next) {
     const body = changePasswordSchema.parse(req.body)
     await authService.changePasswordWithOtp({ userId: req.user.id, ...body })
     res.json({ ok: true })
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ ok: false, error: e.issues[0]?.message || 'Invalid body' })
+    next(e)
+  }
+}
+
+export async function forgotPasswordRequest(req, res, next) {
+  try {
+    const body = forgotPasswordRequestSchema.parse(req.body)
+    const out = await authService.requestForgotPasswordOtp(body)
+    res.json({ ok: true, ...out })
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ ok: false, error: e.issues[0]?.message || 'Invalid body' })
+    next(e)
+  }
+}
+
+export async function forgotPasswordReset(req, res, next) {
+  try {
+    const body = forgotPasswordResetSchema.parse(req.body)
+    const out = await authService.resetPasswordWithForgotOtp(body)
+    res.json({ ok: true, ...out })
   } catch (e) {
     if (e instanceof z.ZodError) return res.status(400).json({ ok: false, error: e.issues[0]?.message || 'Invalid body' })
     next(e)

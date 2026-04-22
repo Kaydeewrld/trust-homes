@@ -591,8 +591,8 @@ function MessagesPage() {
   const activeWhatsAppHref = active ? whatsappHref(active.phone) : undefined
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-[min(100%,1600px)] flex-1 flex-col">
-      <div className="flex min-h-[min(420px,calc(100dvh-10rem))] max-h-[min(720px,calc(100dvh-8rem))] flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
+    <div className="flex w-full min-w-0 max-w-[min(100%,1600px)] flex-col">
+      <div className="flex min-h-[640px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
         <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 divide-y divide-slate-200 overflow-hidden lg:grid-cols-[minmax(200px,260px)_minmax(0,1fr)] lg:divide-x lg:divide-y-0 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(260px,300px)]">
         {/* Conversation list */}
         <aside className="flex min-h-0 flex-col bg-white lg:max-h-full">

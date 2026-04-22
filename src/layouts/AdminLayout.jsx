@@ -6,7 +6,7 @@ const navGroups = [
   {
     label: 'Overview',
     items: [
-      { to: '/admin', end: true, label: 'Dashboard', icon: 'dash' },
+      { to: '/admin/overview', label: 'Dashboard', icon: 'dash' },
       { to: '/admin/admins', label: 'Admin management', icon: 'shield' },
     ],
   },

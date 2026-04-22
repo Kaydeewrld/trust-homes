@@ -139,9 +139,9 @@ function HomePage() {
   const walletDisplay = `₦${new Intl.NumberFormat('en-NG').format(balance)}`
 
   return (
-    <section className="space-y-0 pb-0">
-      <div className="mx-auto w-full max-w-[min(100%,1840px)] px-3 sm:px-5 md:px-7 lg:px-10 xl:px-12 2xl:px-14">
-      <div className="border-y border-[#e8d39a]/60 bg-gradient-to-br from-[#f4fbff] via-[#f7f0db] to-[#efd58b] py-4 shadow-[0_22px_70px_rgba(232,188,74,0.28)] md:py-5">
+    <section className="w-full space-y-0 pb-0">
+      <div className="w-full px-1 sm:px-2">
+      <div className="border-y border-[#cfe6ff]/70 bg-gradient-to-br from-[#f3faff] via-[#e8f4ff] to-[#d8ecff] py-4 shadow-[0_18px_55px_rgba(86,151,222,0.22)] md:py-5">
         <div className="rounded-2xl border border-[#d8e6ff]/80 bg-white/70 p-3 backdrop-blur-xl md:px-4">
           <div className="grid items-center gap-3 md:grid-cols-[170px_1fr_auto]">
             <div className="flex items-center gap-2">

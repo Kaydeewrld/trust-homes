@@ -11,6 +11,7 @@ import ListingPreviewPage from './pages/ListingPreviewPage'
 import SignUpPage from './pages/SignUpPage'
 import LoginPage from './pages/LoginPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import AgentDashboardLayout from './layouts/AgentDashboardLayout'
 import AgentOverviewPage from './pages/agent/AgentOverviewPage'
 import AgentSettingsPage from './pages/agent/AgentSettingsPage'
@@ -50,6 +51,8 @@ function App() {
   const isSignUp = location.pathname === '/signup'
   const isLogin = location.pathname === '/login'
   const isVerifyEmail = location.pathname === '/verify-email'
+  const isForgotPassword = location.pathname === '/forgot-password'
+  const isAuthShell = isLogin || isSignUp || isVerifyEmail || isForgotPassword
   const isAgent = location.pathname.startsWith('/agent')
   const isAdmin = location.pathname.startsWith('/admin')
   const isAdminLogin = location.pathname === '/admin/login'
@@ -68,19 +71,19 @@ function App() {
             : isAdminLogin
               ? 'flex min-h-svh flex-col overflow-x-hidden bg-[#F9FAFB] text-slate-900'
               : isHome
-                ? 'min-h-screen bg-[#111317] text-slate-100'
-                : isLogin
+                ? 'min-h-screen bg-[#f4fbff] text-slate-900'
+                : isLogin || isForgotPassword
                   ? 'relative flex h-svh max-h-svh min-h-0 flex-col overflow-hidden bg-[#f6f7fb] text-slate-900'
                   : isSignUp || isVerifyEmail
                     ? 'relative flex h-svh max-h-svh min-h-0 flex-col overflow-hidden bg-[#f6f7fb] text-slate-900'
                     : isAddListing
-                      ? 'relative flex w-full flex-1 flex-col min-h-0 overflow-hidden bg-[#f4f2fb] text-slate-900'
+                      ? 'relative flex w-full flex-1 flex-col min-h-0 bg-[#f4f2fb] text-slate-900'
                       : isProfile
-                        ? 'relative flex w-full flex-1 flex-col min-h-0 overflow-hidden bg-[#f6f7fb] text-slate-900'
-                        : 'relative flex w-full flex-1 flex-col min-h-0 overflow-hidden bg-gradient-to-b from-blue-950 via-blue-800 to-slate-100 text-slate-100'
+                        ? 'relative flex w-full flex-1 flex-col min-h-0 bg-[#f6f7fb] text-slate-900'
+                        : 'relative flex min-h-screen w-full flex-1 flex-col bg-gradient-to-b from-blue-950 via-blue-800 to-slate-100 text-slate-100'
       }
     >
-      {!isAgent && !isAdmin && !isHome && !isProfile && !isAddListing && !isSignUp && !isLogin && !isVerifyEmail && (
+      {!isAgent && !isAdmin && !isHome && !isProfile && !isAddListing && !isAuthShell && (
         <>
           <div className="pointer-events-none absolute -top-16 -left-10 h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl" />
           <div className="pointer-events-none absolute right-0 bottom-0 h-72 w-72 rounded-full bg-indigo-300/20 blur-3xl" />
@@ -90,20 +93,20 @@ function App() {
       <div
         className={`relative z-10 flex w-full flex-1 flex-col ${isHome ? '' : 'min-h-0'} ${isAdminApp ? 'h-full min-h-0 overflow-hidden' : ''}`}
       >
-        {!isAgent && !isAdmin && !isHome && !isSignUp && !isLogin && !isVerifyEmail && <SiteHeader />}
+        {!isAgent && !isAdmin && !isHome && !isAuthShell && <SiteHeader />}
         <main
           className={
             isAgent || isAdmin
               ? 'flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0'
               : isHome
-                ? 'px-0 pb-8 pt-4'
-                : isSignUp || isLogin || isVerifyEmail
+                ? 'px-0'
+                : isAuthShell
                   ? 'flex w-full flex-1 flex-col'
-                  : isAddListing
-                    ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain'
-                    : isProfile
-                      ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain border-y border-slate-200 bg-[#f6f7fb] px-4 pb-4 pt-4 md:px-6'
-                      : `flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain border-y border-white/20 bg-white/10 px-4 pb-4 pt-4 backdrop-blur-xl md:px-6${isMessages ? ' min-w-0' : ''}`
+                : isAddListing
+                    ? 'flex w-full flex-1 flex-col'
+                : isProfile
+                      ? 'flex w-full flex-1 flex-col border-y border-slate-200 bg-[#f6f7fb] px-4 pb-4 pt-4 md:px-6'
+                      : `flex w-full flex-1 flex-col border-y border-white/20 bg-white/10 px-4 pb-4 pt-4 backdrop-blur-xl md:px-6${isMessages ? ' min-w-0' : ''}`
           }
         >
           <div
@@ -113,7 +116,7 @@ function App() {
                 ? `flex h-full min-h-0 flex-1 flex-col${isAdminApp ? ' overflow-hidden' : ''}`
                 : isHome
                   ? 'animate-rise'
-                  : isSignUp || isLogin || isVerifyEmail
+                  : isAuthShell
                     ? 'animate-rise flex min-h-0 w-full flex-1 flex-col'
                     : `animate-rise flex min-h-0 w-full min-w-0 flex-1 flex-col`
             }
@@ -128,12 +131,14 @@ function App() {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/add-listing/preview" element={<ListingPreviewPage />} />
               <Route path="/add-listing" element={<AddListingPage />} />
+              <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
               <Route path="/admin/login" element={<AdminLoginPage />} />
               <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<AdminOverviewPage />} />
+                <Route path="overview" element={<AdminOverviewPage />} />
                 <Route path="admins" element={<AdminAdminsPage />} />
                 <Route path="users" element={<AdminUsersPage />} />
                 <Route path="agents" element={<AdminAgentsPage />} />
@@ -165,7 +170,7 @@ function App() {
             </Routes>
           </div>
         </main>
-        {!isAgent && !isAdmin && !isSignUp && !isLogin && !isVerifyEmail && <SiteFooter />}
+        {!isAgent && !isAdmin && !isAuthShell && <SiteFooter />}
       </div>
     </div>
   )

@@ -1,9 +1,11 @@
 import express from 'express'
 import cors from 'cors'
+import swaggerUi from 'swagger-ui-express'
 import { config } from './config.js'
 import { apiRouter } from './routes/index.js'
 import { errorHandler, notFound } from './middlewares/error.js'
 import * as paymentController from './controllers/paymentController.js'
+import { openapiSpec } from './docs/openapi.js'
 
 export function createApp() {
   const app = express()
@@ -34,6 +36,16 @@ export function createApp() {
   )
   app.use(express.json())
 
+  app.get('/', (_req, res) => {
+    res.json({
+      ok: true,
+      service: 'trustedhome-api',
+      docs: '/docs',
+      health: '/api/health',
+    })
+  })
+
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec))
   app.use('/api', apiRouter)
 
   app.use(notFound)

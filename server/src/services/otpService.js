@@ -7,6 +7,7 @@ import { createId } from '../utils/createId.js'
 export const OtpPurpose = {
   VERIFY_EMAIL: 'VERIFY_EMAIL',
   PASSWORD_CHANGE: 'PASSWORD_CHANGE',
+  FORGOT_PASSWORD: 'FORGOT_PASSWORD',
 }
 
 const OTP_TTL_MS = 10 * 60 * 1000

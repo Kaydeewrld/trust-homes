@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 
 dotenv.config()
+dotenv.config({ path: '.env.local', override: true })
 
 /** Browsers send Origin without a trailing slash; normalize so CORS matches. */
 function normalizeOriginUrl(raw) {

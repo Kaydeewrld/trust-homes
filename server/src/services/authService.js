@@ -226,6 +226,46 @@ export async function requestPasswordChangeOtp(userId) {
   return { ok: true }
 }
 
+const forgotPasswordGenericMessage =
+  'If an account exists for this email with password sign-in, a reset code was sent.'
+
+export async function requestForgotPasswordOtp({ email }) {
+  const e = String(email || '').trim().toLowerCase()
+  const user = await selectUserByEmail(e)
+  if (!user?.passwordHash) {
+    return { ok: true, message: forgotPasswordGenericMessage }
+  }
+  await createAndDeliverOtp({
+    email: e,
+    purpose: OtpPurpose.FORGOT_PASSWORD,
+    mailSubject: 'Reset your TrustedHome password',
+    mailIntro: 'Use this code to reset your password:',
+  })
+  return { ok: true, message: forgotPasswordGenericMessage }
+}
+
+export async function resetPasswordWithForgotOtp({ email, otp, newPassword }) {
+  assertPasswordStrength(newPassword)
+  const e = String(email || '').trim().toLowerCase()
+  const v = await verifyOtpRecord({ email: e, purpose: OtpPurpose.FORGOT_PASSWORD, code: otp })
+  if (!v.ok) {
+    const err = new Error(v.error)
+    err.status = 400
+    err.expose = true
+    throw err
+  }
+  const user = await selectUserByEmail(e)
+  if (!user?.passwordHash) {
+    const err = new Error('Password reset is not available for this account. Try signing in with Google.')
+    err.status = 400
+    err.expose = true
+    throw err
+  }
+  const passwordHash = await hashPassword(newPassword)
+  await query(`UPDATE "User" SET "passwordHash" = $2, "updatedAt" = NOW() WHERE id = $1`, [user.id, passwordHash])
+  return { ok: true }
+}
+
 export async function changePasswordWithOtp({ userId, currentPassword, newPassword, otp }) {
   assertPasswordStrength(newPassword)
   const user = await selectUserById(userId)

@@ -24,7 +24,7 @@ export default function AdminLoginPage() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/admin', { replace: true })
+    if (isAuthenticated) navigate('/admin/overview', { replace: true })
   }, [isAuthenticated, navigate])
 
   const onSubmit = (e) => {
@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
       return
     }
     toast.success('Welcome back', 'You are signed in to the admin console.')
-    navigate('/admin', { replace: true })
+    navigate('/admin/overview', { replace: true })
   }
 
   return (
