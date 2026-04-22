@@ -106,14 +106,22 @@ export async function register({ email, password, displayName, role, phone, agen
   }
 
   const user = await selectUserById(uid)
-  await createAndDeliverOtp({
-    email: e,
-    purpose: OtpPurpose.VERIFY_EMAIL,
-    mailSubject: 'Your TrustedHome verification code',
-    mailIntro: 'Use this code to verify your email address:',
-  })
+  let emailDelivery = 'sent'
+  try {
+    await createAndDeliverOtp({
+      email: e,
+      purpose: OtpPurpose.VERIFY_EMAIL,
+      mailSubject: 'Your TrustedHome verification code',
+      mailIntro: 'Use this code to verify your email address:',
+    })
+  } catch (err) {
+    console.error('[auth] verify-email OTP send failed (account was created):', err?.message || err)
+    emailDelivery = 'failed'
+  }
   const token = signAppToken({ sub: user.id, email: user.email, role: user.role })
-  return { token, user: publicUser(user) }
+  const out = { token, user: publicUser(user) }
+  if (emailDelivery === 'failed') out.emailDelivery = 'failed'
+  return out
 }
 
 export async function login({ email, password, intent }) {

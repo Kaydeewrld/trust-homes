@@ -9,7 +9,11 @@ export function createApp() {
   const app = express()
   app.use(
     cors({
-      origin: config.clientOrigin,
+      origin(origin, cb) {
+        if (!origin) return cb(null, true)
+        if (config.clientOrigins.includes(origin)) return cb(null, true)
+        return cb(null, false)
+      },
       credentials: true,
     }),
   )

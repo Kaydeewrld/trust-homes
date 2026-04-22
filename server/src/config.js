@@ -3,9 +3,17 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 /** Browsers send Origin without a trailing slash; normalize so CORS matches. */
-function normalizeClientOrigin(raw) {
-  const s = String(raw || '').trim().replace(/\/+$/, '')
-  return s || 'http://localhost:5173'
+function normalizeOriginUrl(raw) {
+  return String(raw || '').trim().replace(/\/+$/, '')
+}
+
+/** Comma-separated: production + preview, e.g. `https://app.vercel.app,https://app-git-main-xxx.vercel.app` */
+function parseClientOrigins(raw) {
+  const list = String(raw || '')
+    .split(',')
+    .map(normalizeOriginUrl)
+    .filter(Boolean)
+  return list.length ? list : ['http://localhost:5173']
 }
 
 function required(name, { allowEmpty = false } = {}) {
@@ -18,7 +26,8 @@ function required(name, { allowEmpty = false } = {}) {
 
 export const config = {
   port: Number(process.env.PORT || 4000),
-  clientOrigin: normalizeClientOrigin(process.env.CLIENT_ORIGIN),
+  /** Allowed browser origins for CORS (comma-separated in `CLIENT_ORIGIN`). */
+  clientOrigins: parseClientOrigins(process.env.CLIENT_ORIGIN),
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET || '',
   otpPepper: process.env.OTP_PEPPER || '',

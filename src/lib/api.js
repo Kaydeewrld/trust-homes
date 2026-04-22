@@ -1,9 +1,16 @@
 const DEFAULT_API = 'http://localhost:4000/api'
 
+/**
+ * All Express routes are mounted at `/api` on the server. If `VITE_API_URL` is set
+ * without that suffix (e.g. `https://my-service.onrender.com`), append `/api` so
+ * requests hit `/api/auth/register` instead of `/auth/register` (404).
+ */
 export function apiBaseUrl() {
-  const u = import.meta.env.VITE_API_URL
-  if (u && String(u).trim()) return String(u).replace(/\/$/, '')
-  return DEFAULT_API
+  const raw = import.meta.env.VITE_API_URL
+  if (!raw || !String(raw).trim()) return DEFAULT_API
+  let base = String(raw).trim().replace(/\/+$/, '')
+  if (!base.endsWith('/api')) base = `${base}/api`
+  return base
 }
 
 export async function apiFetch(path, { method = 'GET', token, body, headers = {} } = {}) {
