@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-white/15 bg-gradient-to-b from-[#071a4a] via-[#06153d] to-[#040c25] px-4 py-8 text-blue-100/80 md:px-6">
+    <footer className="relative z-10 shrink-0 border-t border-white/15 bg-gradient-to-b from-[#071a4a] via-[#06153d] to-[#040c25] px-4 py-8 text-blue-100/80 md:px-6">
       <div className="mx-auto w-full max-w-[1400px]">
         <div className="grid gap-5 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur md:grid-cols-[1.2fr_1fr_1fr_1fr] md:p-5">
           <div>

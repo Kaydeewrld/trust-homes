@@ -130,7 +130,7 @@ function EarningsLineChart() {
         <MonthFilterButton />
       </div>
       <div className="relative px-2 pb-2 pt-1 sm:px-3">
-        <svg viewBox={`0 0 ${w} ${h}`} className="h-[180px] w-full" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox={`0 0 ${w} ${h}`} className="h-[min(190px,42vw)] w-full max-h-[190px]" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="agentChartFillV2" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#6366F1" stopOpacity="0.28" />
@@ -185,7 +185,7 @@ function LeadsDonut() {
         <p className="mt-0.5 text-xs text-slate-500">Pipeline distribution</p>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-3 py-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4 lg:px-4">
-        <div className="relative h-[150px] w-[150px] shrink-0">
+        <div className="relative h-[138px] w-[138px] shrink-0 sm:h-[150px] sm:w-[150px]">
           <div
             className="h-full w-full rounded-full shadow-[inset_0_2px_8px_rgba(15,23,42,0.06)]"
             style={{
@@ -247,7 +247,7 @@ function RowMenu() {
 
 export default function AgentOverviewPage() {
   return (
-    <div className="mx-auto flex h-full w-full max-w-[1480px] flex-col overflow-hidden px-4 py-4 md:px-6 md:py-4">
+    <div className="mx-auto flex w-full min-w-0 max-w-[1480px] flex-col px-4 py-4 md:px-6 md:py-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[24px] font-bold leading-tight tracking-tight text-slate-900">Overview</h1>

@@ -1,6 +1,19 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import CustomDropdown from '../components/CustomDropdown'
+import GoogleSignInButton from '../components/GoogleSignInButton.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
+import { useToast } from '../context/ToastContext.jsx'
+import { authRegister } from '../lib/api.js'
+
+function passwordClientHint(pw) {
+  const p = String(pw || '')
+  if (p.length < 10) return 'Use at least 10 characters.'
+  if (!/[a-zA-Z]/.test(p)) return 'Include at least one letter.'
+  if (!/\d/.test(p)) return 'Include at least one number.'
+  if (!/[^A-Za-z0-9]/.test(p)) return 'Include at least one symbol.'
+  return ''
+}
 
 /** Mock primary (indigo) */
 const BRAND = '#6366F1'
@@ -109,7 +122,26 @@ function RolePick({ active, title, subtitle, onClick, icon }) {
   )
 }
 
-function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCode, setDialCode, onSubmit }) {
+function UserForm({
+  showPw,
+  setShowPw,
+  agree,
+  setAgree,
+  email,
+  setEmail,
+  dialCode,
+  setDialCode,
+  firstName,
+  setFirstName,
+  lastName,
+  setLastName,
+  password,
+  setPassword,
+  phoneLocal,
+  setPhoneLocal,
+  onSubmit,
+  submitting,
+}) {
   return (
     <form className="space-y-2 lg:space-y-3" onSubmit={onSubmit}>
       <div className="grid grid-cols-2 gap-2 lg:gap-4">
@@ -121,7 +153,14 @@ function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCod
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" strokeLinecap="round" />
               </svg>
             </FieldIcon>
-            <input type="text" placeholder="First name" className={inpBase} />
+            <input
+              type="text"
+              placeholder="First name"
+              className={inpBase}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              autoComplete="given-name"
+            />
           </div>
         </label>
         <label className="block min-w-0">
@@ -132,7 +171,14 @@ function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCod
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" strokeLinecap="round" />
               </svg>
             </FieldIcon>
-            <input type="text" placeholder="Last name" className={inpBase} />
+            <input
+              type="text"
+              placeholder="Last name"
+              className={inpBase}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              autoComplete="family-name"
+            />
           </div>
         </label>
       </div>
@@ -172,7 +218,14 @@ function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCod
               options={DIAL_CODE_OPTIONS}
             />
           </div>
-          <input type="tel" placeholder="Enter your phone number" className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] outline-none placeholder:text-slate-400 lg:px-3 lg:text-[14px]" />
+          <input
+            type="tel"
+            placeholder="Enter your phone number"
+            className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] outline-none placeholder:text-slate-400 lg:px-3 lg:text-[14px]"
+            value={phoneLocal}
+            onChange={(e) => setPhoneLocal(e.target.value)}
+            autoComplete="tel-national"
+          />
         </div>
       </label>
 
@@ -185,7 +238,14 @@ function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCod
               <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
             </svg>
           </FieldIcon>
-          <input type={showPw ? 'text' : 'password'} placeholder="Create a password" className={`${inpBase} pr-9 lg:pr-10`} />
+          <input
+            type={showPw ? 'text' : 'password'}
+            placeholder="Create a password"
+            className={`${inpBase} pr-9 lg:pr-10`}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+          />
           <button
             type="button"
             onClick={() => setShowPw((s) => !s)}
@@ -204,7 +264,7 @@ function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCod
             </svg>
           </button>
         </div>
-        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">Use 8+ characters with a mix of letters, numbers & symbols</p>
+        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">10+ characters with letters, numbers & a symbol</p>
       </label>
 
       <label className="flex cursor-pointer items-start gap-2 pt-0.5 lg:gap-2.5">
@@ -229,16 +289,40 @@ function UserForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCod
 
       <button
         type="submit"
-        className="h-10 w-full rounded-lg text-[13px] font-semibold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] lg:h-11 lg:text-[14px]"
+        disabled={submitting}
+        className="h-10 w-full rounded-lg text-[13px] font-semibold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 lg:h-11 lg:text-[14px]"
         style={{ backgroundColor: BRAND }}
       >
-        Create Account
+        {submitting ? 'Creating…' : 'Create Account'}
       </button>
     </form>
   )
 }
 
-function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCode, setDialCode, onSubmit }) {
+function AgentForm({
+  showPw,
+  setShowPw,
+  agree,
+  setAgree,
+  email,
+  setEmail,
+  dialCode,
+  setDialCode,
+  firstName,
+  setFirstName,
+  lastName,
+  setLastName,
+  password,
+  setPassword,
+  phoneLocal,
+  setPhoneLocal,
+  agencyName,
+  setAgencyName,
+  licenseId,
+  setLicenseId,
+  onSubmit,
+  submitting,
+}) {
   return (
     <form className="space-y-2 lg:space-y-3" onSubmit={onSubmit}>
       <label className="block">
@@ -250,7 +334,14 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
               <path d="M9 22V12h6v10" strokeLinecap="round" />
             </svg>
           </FieldIcon>
-          <input type="text" placeholder="Agency name" className={inpBase} />
+          <input
+            type="text"
+            placeholder="Agency name"
+            className={inpBase}
+            value={agencyName}
+            onChange={(e) => setAgencyName(e.target.value)}
+            autoComplete="organization"
+          />
         </div>
       </label>
 
@@ -263,7 +354,14 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" strokeLinecap="round" />
               </svg>
             </FieldIcon>
-            <input type="text" placeholder="First name" className={inpBase} />
+            <input
+              type="text"
+              placeholder="First name"
+              className={inpBase}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              autoComplete="given-name"
+            />
           </div>
         </label>
         <label className="block min-w-0">
@@ -274,7 +372,14 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" strokeLinecap="round" />
               </svg>
             </FieldIcon>
-            <input type="text" placeholder="Last name" className={inpBase} />
+            <input
+              type="text"
+              placeholder="Last name"
+              className={inpBase}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              autoComplete="family-name"
+            />
           </div>
         </label>
       </div>
@@ -312,7 +417,14 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
               options={DIAL_CODE_OPTIONS}
             />
           </div>
-          <input type="tel" placeholder="Business phone" className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] outline-none placeholder:text-slate-400 lg:px-3 lg:text-[14px]" />
+          <input
+            type="tel"
+            placeholder="Business phone"
+            className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] outline-none placeholder:text-slate-400 lg:px-3 lg:text-[14px]"
+            value={phoneLocal}
+            onChange={(e) => setPhoneLocal(e.target.value)}
+            autoComplete="tel-national"
+          />
         </div>
       </label>
 
@@ -325,7 +437,13 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
               <path d="M14 2v6h6M16 13H8" strokeLinecap="round" />
             </svg>
           </FieldIcon>
-          <input type="text" placeholder="e.g. REC-LAG-XXXXX" className={inpBase} />
+          <input
+            type="text"
+            placeholder="e.g. REC-LAG-XXXXX"
+            className={inpBase}
+            value={licenseId}
+            onChange={(e) => setLicenseId(e.target.value)}
+          />
         </div>
       </label>
 
@@ -338,7 +456,14 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
               <path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
             </svg>
           </FieldIcon>
-          <input type={showPw ? 'text' : 'password'} placeholder="Create a password" className={`${inpBase} pr-9 lg:pr-10`} />
+          <input
+            type={showPw ? 'text' : 'password'}
+            placeholder="Create a password"
+            className={`${inpBase} pr-9 lg:pr-10`}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+          />
           <button
             type="button"
             onClick={() => setShowPw((s) => !s)}
@@ -357,7 +482,7 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
             </svg>
           </button>
         </div>
-        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">Use 8+ characters with a mix of letters, numbers & symbols</p>
+        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">10+ characters with letters, numbers & a symbol</p>
       </label>
 
       <label className="flex cursor-pointer items-start gap-2 pt-0.5 lg:gap-2.5">
@@ -376,10 +501,11 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
 
       <button
         type="submit"
-        className="h-10 w-full rounded-lg text-[13px] font-semibold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] lg:h-11 lg:text-[14px]"
+        disabled={submitting}
+        className="h-10 w-full rounded-lg text-[13px] font-semibold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 lg:h-11 lg:text-[14px]"
         style={{ backgroundColor: BRAND }}
       >
-        Create Agent Account
+        {submitting ? 'Creating…' : 'Create Agent Account'}
       </button>
     </form>
   )
@@ -387,17 +513,57 @@ function AgentForm({ showPw, setShowPw, agree, setAgree, email, setEmail, dialCo
 
 function SignUpPage() {
   const navigate = useNavigate()
+  const { applySession } = useAuth()
+  const toast = useToast()
   const [role, setRole] = useState('user')
   const [showPw, setShowPw] = useState(false)
   const [agree, setAgree] = useState(false)
   const [signupEmail, setSignupEmail] = useState('')
   const [dialCode, setDialCode] = useState('+234')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [password, setPassword] = useState('')
+  const [phoneLocal, setPhoneLocal] = useState('')
+  const [agencyName, setAgencyName] = useState('')
+  const [licenseId, setLicenseId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const goToVerifyEmail = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault()
-    const trimmed = signupEmail.trim()
-    const qs = trimmed ? `?email=${encodeURIComponent(trimmed)}` : ''
-    navigate(`/verify-email${qs}`)
+    if (!agree) {
+      toast.warning('Terms required', 'Please accept the Terms of Service and Privacy Policy.')
+      return
+    }
+    const trimmedEmail = signupEmail.trim().toLowerCase()
+    if (!trimmedEmail) {
+      toast.warning('Email required', 'Enter a valid email address.')
+      return
+    }
+    const hint = passwordClientHint(password)
+    if (hint) {
+      toast.warning('Password too weak', hint)
+      return
+    }
+    const displayName = `${firstName} ${lastName}`.trim() || trimmedEmail.split('@')[0]
+    const phone = phoneLocal.trim() ? `${dialCode}${phoneLocal.replace(/^\+/, '')}` : undefined
+    setSubmitting(true)
+    try {
+      const data = await authRegister({
+        email: trimmedEmail,
+        password,
+        displayName,
+        role: role === 'agent' ? 'AGENT' : 'USER',
+        phone,
+        agencyName: role === 'agent' ? agencyName.trim() || undefined : undefined,
+        licenseId: role === 'agent' ? licenseId.trim() || undefined : undefined,
+      })
+      applySession({ token: data.token, user: data.user })
+      navigate(`/verify-email?email=${encodeURIComponent(trimmedEmail)}`)
+    } catch (err) {
+      toast.error('Sign up failed', err.message || 'Try a different email or password.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const socialBtn =
@@ -556,16 +722,10 @@ function SignUpPage() {
             <DividerOr label="or sign up with" />
           </div>
 
-          <div className="mt-2 flex gap-2 lg:gap-3">
-            <button type="button" className={socialBtn}>
-              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-              </svg>
-              Continue with Google
-            </button>
+          <div className="mt-2 flex min-h-10 gap-2 lg:min-h-11 lg:gap-3">
+            <div className="flex min-w-0 flex-1 items-stretch justify-center [&>div]:w-full [&>div]:max-w-full">
+              <GoogleSignInButton intent={role === 'agent' ? 'AGENT' : 'USER'} ux="signup" />
+            </div>
             <button type="button" className={socialBtn}>
               <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.17 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.65 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
@@ -589,7 +749,16 @@ function SignUpPage() {
                 setEmail={setSignupEmail}
                 dialCode={dialCode}
                 setDialCode={setDialCode}
-                onSubmit={goToVerifyEmail}
+                firstName={firstName}
+                setFirstName={setFirstName}
+                lastName={lastName}
+                setLastName={setLastName}
+                password={password}
+                setPassword={setPassword}
+                phoneLocal={phoneLocal}
+                setPhoneLocal={setPhoneLocal}
+                onSubmit={handleRegister}
+                submitting={submitting}
               />
             ) : (
               <AgentForm
@@ -601,7 +770,20 @@ function SignUpPage() {
                 setEmail={setSignupEmail}
                 dialCode={dialCode}
                 setDialCode={setDialCode}
-                onSubmit={goToVerifyEmail}
+                firstName={firstName}
+                setFirstName={setFirstName}
+                lastName={lastName}
+                setLastName={setLastName}
+                password={password}
+                setPassword={setPassword}
+                phoneLocal={phoneLocal}
+                setPhoneLocal={setPhoneLocal}
+                agencyName={agencyName}
+                setAgencyName={setAgencyName}
+                licenseId={licenseId}
+                setLicenseId={setLicenseId}
+                onSubmit={handleRegister}
+                submitting={submitting}
               />
             )}
           </div>

@@ -84,9 +84,8 @@ export default function AgentEditListingPage() {
   const galleryThumbs = [base.image, base.image, base.image, base.image, base.image]
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F9FAFB]">
-      <div className="thin-scroll flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6 lg:py-5">
+    <div className="flex w-full min-w-0 flex-col bg-[#F9FAFB]">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6 lg:py-5">
           {/* Main form column */}
           <div className="min-w-0 flex-1 space-y-4">
             <Link
@@ -472,7 +471,6 @@ export default function AgentEditListingPage() {
             </div>
           </aside>
         </div>
-      </div>
     </div>
   )
 }

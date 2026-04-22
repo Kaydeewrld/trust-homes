@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
+import { useToast } from '../context/ToastContext.jsx'
+import { authResendVerifyEmail, authVerifyEmail } from '../lib/api.js'
 
 const BRAND = '#6366F1'
 const VILLA =
@@ -80,16 +83,63 @@ function formatCountdown(sec) {
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
-  const email = searchParams.get('email')?.trim() || 'john.doe@email.com'
+  const navigate = useNavigate()
+  const toast = useToast()
+  const { applySession } = useAuth()
+  const email = searchParams.get('email')?.trim() || ''
 
   const [digits, setDigits] = useState(() => Array(6).fill(''))
   const inputsRef = useRef([])
   const [secondsLeft, setSecondsLeft] = useState(45)
+  const [verifying, setVerifying] = useState(false)
+  const [resending, setResending] = useState(false)
 
   useEffect(() => {
     const t = window.setInterval(() => setSecondsLeft((x) => (x <= 0 ? 0 : x - 1)), 1000)
     return () => window.clearInterval(t)
   }, [])
+
+  const codeString = digits.join('')
+
+  const submitVerify = useCallback(async () => {
+    if (!email) {
+      toast.warning('Missing email', 'Open this page from the sign-up link or add ?email= to the URL.')
+      return
+    }
+    if (!/^\d{6}$/.test(codeString)) {
+      toast.warning('Invalid code', 'Enter all 6 digits.')
+      return
+    }
+    setVerifying(true)
+    try {
+      const data = await authVerifyEmail({ email, code: codeString })
+      applySession({ token: data.token, user: data.user })
+      toast.success('Email verified', 'You are all set.')
+      navigate(data.user?.role === 'AGENT' ? '/agent' : '/explore')
+    } catch (e) {
+      toast.error('Verification failed', e.message || 'Check the code and try again.')
+    } finally {
+      setVerifying(false)
+    }
+  }, [applySession, codeString, email, navigate, toast])
+
+  const submitResend = useCallback(async () => {
+    if (!email) {
+      toast.warning('Missing email', 'We need your email to resend the code.')
+      return
+    }
+    if (secondsLeft > 0) return
+    setResending(true)
+    try {
+      await authResendVerifyEmail({ email })
+      toast.success('Code sent', 'Check your inbox (and spam folder).')
+      setSecondsLeft(45)
+    } catch (e) {
+      toast.error('Could not resend', e.message || 'Try again in a moment.')
+    } finally {
+      setResending(false)
+    }
+  }, [email, secondsLeft, toast])
 
   const setChar = useCallback((index, ch) => {
     const c = ch.replace(/\D/g, '').slice(-1) || ''
@@ -235,7 +285,8 @@ export default function VerifyEmailPage() {
               Verify your email
             </h1>
             <p className="mt-2 text-center text-[12px] leading-relaxed text-slate-500 lg:text-left lg:text-[13px]">
-              Enter the 6-digit code we sent to <span className="font-semibold text-slate-700">{email}</span>
+              Enter the 6-digit code we sent to{' '}
+              <span className="font-semibold text-slate-700">{email || 'your email'}</span>
             </p>
 
             <div className="mt-6 grid w-full grid-cols-6 gap-2 sm:gap-3 lg:mt-8 lg:gap-4" onPaste={onPaste}>
@@ -262,20 +313,22 @@ export default function VerifyEmailPage() {
                 type="button"
                 className="text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40 lg:text-[13px]"
                 style={{ color: BRAND }}
-                disabled={secondsLeft > 0}
-                onClick={() => setSecondsLeft(45)}
+                disabled={secondsLeft > 0 || resending}
+                onClick={submitResend}
               >
-                Resend OTP
+                {resending ? 'Sending…' : 'Resend OTP'}
               </button>
               <span className="font-mono text-[12px] tabular-nums text-slate-400 lg:text-[13px]">{formatCountdown(secondsLeft)}</span>
             </div>
 
             <button
               type="button"
-              className="mt-6 h-11 w-full rounded-xl text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] lg:mt-8 lg:h-12 lg:text-[15px]"
+              disabled={verifying}
+              onClick={submitVerify}
+              className="mt-6 h-11 w-full rounded-xl text-[14px] font-semibold text-white shadow-md transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 lg:mt-8 lg:h-12 lg:text-[15px]"
               style={{ backgroundColor: BRAND }}
             >
-              Verify & Continue
+              {verifying ? 'Verifying…' : 'Verify & Continue'}
             </button>
 
             <Link

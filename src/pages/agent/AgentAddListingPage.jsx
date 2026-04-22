@@ -84,6 +84,10 @@ export default function AgentAddListingPage() {
   const [availability, setAvailability] = useState('')
   const [yearBuilt, setYearBuilt] = useState('2022')
   const [price, setPrice] = useState('')
+  const [paySmallSmallOpen, setPaySmallSmallOpen] = useState(false)
+  const [payPlan, setPayPlan] = useState('monthly')
+  const [payDurationMonths, setPayDurationMonths] = useState('12')
+  const [payInitialPct, setPayInitialPct] = useState('20')
   const [location, setLocation] = useState('Lekki Phase 1, Lagos')
   const [description, setDescription] = useState(
     'A stunning modern home with premium finishes, generous living spaces, and excellent natural light—perfect for families seeking comfort and style.'
@@ -94,6 +98,11 @@ export default function AgentAddListingPage() {
   const previewTitle = title.trim() || 'Luxury 4 Bedroom Duplex'
   const previewPrice = fmtPrice(price) || '₦120,000,000'
   const progressPct = ((step + 1) / STEPS.length) * 100
+  const numericPrice = Number(String(price).replace(/\D/g, '')) || 0
+  const initialPctNum = Math.min(90, Math.max(0, Number(payInitialPct) || 0))
+  const durationNum = Math.max(1, Number(payDurationMonths) || 1)
+  const financedAmount = Math.max(0, numericPrice - (numericPrice * initialPctNum) / 100)
+  const perInstallment = financedAmount / durationNum
 
   const shortDesc = useMemo(() => {
     const t = description.trim()
@@ -106,9 +115,8 @@ export default function AgentAddListingPage() {
   const goBack = () => setStep((s) => Math.max(0, s - 1))
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F9FAFB]">
-      <div className="thin-scroll flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1360px] px-4 py-4 md:px-6 md:py-5">
+    <div className="flex w-full min-w-0 flex-col bg-[#F9FAFB]">
+      <div className="mx-auto w-full max-w-[1360px] px-4 py-4 md:px-6 md:py-5">
           <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-[22px] font-bold tracking-tight text-[#111827] md:text-2xl">Add New Listing</h1>
@@ -374,6 +382,69 @@ export default function AgentAddListingPage() {
                         inputMode="numeric"
                       />
                     </div>
+                    <div className="sm:col-span-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[13px] font-semibold text-slate-800">Pay Small Small</p>
+                            <p className="mt-0.5 text-[12px] text-slate-500">Enable installment options instead of one-off payment.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPaySmallSmallOpen((v) => !v)}
+                            className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-[13px] font-semibold shadow-sm transition ${
+                              paySmallSmallOpen
+                                ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-200/70'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {paySmallSmallOpen ? 'Disable Plan' : 'Enable Plan'}
+                          </button>
+                        </div>
+
+                        {paySmallSmallOpen ? (
+                          <div className="mt-4 grid gap-3 rounded-xl border border-indigo-100 bg-white p-3 sm:grid-cols-2">
+                            <div>
+                              <FieldLabel required>Plan Type</FieldLabel>
+                              <select
+                                value={payPlan}
+                                onChange={(e) => setPayPlan(e.target.value)}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 pr-9 text-[13px] font-medium text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.65rem center' }}
+                              >
+                                <option value="monthly">Monthly Installments</option>
+                                <option value="bi-monthly">Every 2 Months</option>
+                                <option value="quarterly">Quarterly</option>
+                              </select>
+                            </div>
+                            <div>
+                              <FieldLabel required>Duration (Months)</FieldLabel>
+                              <input
+                                value={payDurationMonths}
+                                onChange={(e) => setPayDurationMonths(e.target.value.replace(/\D/g, ''))}
+                                className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[13px] tabular-nums outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+                                placeholder="12"
+                                inputMode="numeric"
+                              />
+                            </div>
+                            <div>
+                              <FieldLabel required>Initial Deposit (%)</FieldLabel>
+                              <input
+                                value={payInitialPct}
+                                onChange={(e) => setPayInitialPct(e.target.value.replace(/\D/g, ''))}
+                                className="h-10 w-full rounded-xl border border-slate-200 px-3 text-[13px] tabular-nums outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+                                placeholder="20"
+                                inputMode="numeric"
+                              />
+                            </div>
+                            <div className="rounded-xl border border-indigo-100 bg-indigo-50/80 px-3 py-2.5">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700">Estimated per installment</p>
+                              <p className="mt-1 text-[16px] font-bold tabular-nums text-indigo-700">{fmtPrice(perInstallment) || '₦0'}</p>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
                 </section>
               )}
@@ -442,6 +513,16 @@ export default function AgentAddListingPage() {
                   {location || 'Add location'}
                 </p>
                 <p className="mt-2 text-xl font-bold text-[#6366F1] tabular-nums">{previewPrice}</p>
+                {paySmallSmallOpen ? (
+                  <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/80 px-3 py-2">
+                    <p className="text-[11px] font-semibold text-indigo-700">
+                      Pay Small Small · {payPlan === 'bi-monthly' ? 'Every 2 Months' : payPlan === 'quarterly' ? 'Quarterly' : 'Monthly'}
+                    </p>
+                    <p className="mt-0.5 text-[12px] font-bold tabular-nums text-indigo-700">
+                      {fmtPrice(perInstallment) || '₦0'} x {durationNum} months ({initialPctNum}% upfront)
+                    </p>
+                  </div>
+                ) : null}
                 <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
                   {[
                     { k: 'Beds', v: bedrooms },
@@ -480,7 +561,6 @@ export default function AgentAddListingPage() {
             </aside>
           </div>
         </div>
-      </div>
 
       {/* Sticky footer */}
       <div className="sticky bottom-0 z-20 border-t border-slate-200 bg-[#F9FAFB]/95 px-4 py-3 backdrop-blur-md md:px-6">

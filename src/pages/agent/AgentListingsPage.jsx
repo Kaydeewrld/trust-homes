@@ -293,7 +293,7 @@ export default function AgentListingsPage() {
   }, [activeTab, listingsData])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-4 py-3 text-slate-800 md:px-6 md:py-4">
+    <div className="flex w-full min-w-0 flex-col px-4 py-3 text-slate-800 md:px-6 md:py-4">
       <AgentListingDetailModal listing={viewing} open={Boolean(viewing)} onClose={() => setViewing(null)} />
       <AgentShareListingModal listing={sharing} open={Boolean(sharing)} onClose={() => setSharing(null)} />
       <AgentDuplicateListingModal
@@ -407,9 +407,8 @@ export default function AgentListingsPage() {
         </div>
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
-        <div className="thin-scroll h-full overflow-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left">
+      <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <table className="w-full min-w-[980px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/90">
                 {['PROPERTY', 'STATUS', 'PRICE', 'VIEWS', 'LEADS', 'DATE ADDED', 'ACTIONS'].map((h) => (
@@ -492,7 +491,6 @@ export default function AgentListingsPage() {
               )}
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   )

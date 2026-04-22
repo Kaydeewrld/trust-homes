@@ -140,7 +140,8 @@ function HomePage() {
 
   return (
     <section className="space-y-0 pb-0">
-      <div className="border-y border-[#e8d39a]/60 bg-gradient-to-br from-[#f4fbff] via-[#f7f0db] to-[#efd58b] px-4 py-4 shadow-[0_22px_70px_rgba(232,188,74,0.28)] md:px-6 md:py-5">
+      <div className="mx-auto w-full max-w-[min(100%,1840px)] px-3 sm:px-5 md:px-7 lg:px-10 xl:px-12 2xl:px-14">
+      <div className="border-y border-[#e8d39a]/60 bg-gradient-to-br from-[#f4fbff] via-[#f7f0db] to-[#efd58b] py-4 shadow-[0_22px_70px_rgba(232,188,74,0.28)] md:py-5">
         <div className="rounded-2xl border border-[#d8e6ff]/80 bg-white/70 p-3 backdrop-blur-xl md:px-4">
           <div className="grid items-center gap-3 md:grid-cols-[170px_1fr_auto]">
             <div className="flex items-center gap-2">
@@ -260,15 +261,15 @@ function HomePage() {
           </div>
         </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_280px]">
-          <div className="rounded-2xl border border-blue-100/80 bg-white/78 p-4 backdrop-blur-xl">
-            <div className="grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="mt-3 grid gap-4 xl:grid-cols-[1fr_minmax(300px,360px)]">
+          <div className="rounded-2xl border border-blue-100/80 bg-white/78 p-4 backdrop-blur-xl md:p-5">
+            <div className="grid gap-4 lg:grid-cols-[1.12fr_0.88fr] lg:gap-6">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-blue-600/85">Premium Real Estate Platform</p>
-                <h1 className="mt-2 max-w-xl text-3xl font-semibold leading-tight text-slate-900 md:text-[2.25rem]">
+                <h1 className="mt-2 max-w-4xl text-3xl font-semibold leading-tight text-slate-900 md:text-[2.35rem] lg:text-[2.5rem]">
                   Find Your Next Home, Office, Or Investment In Minutes
                 </h1>
-                <p className="mt-2 max-w-lg text-2xl text-slate-800">
+                <p className="mt-2 max-w-3xl text-xl leading-snug text-slate-800 md:text-2xl">
                   Discover premium listings around Lagos with transparent pricing, verified agents, and fast scheduling.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -473,7 +474,7 @@ function HomePage() {
               View all
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {featured.map((item) => (
               <article key={item.id} className="overflow-hidden rounded-xl border border-blue-200/20 bg-[#0f2f96]/85">
                 <img src={item.image} alt={item.title} className="h-32 w-full object-cover" />
@@ -499,7 +500,7 @@ function HomePage() {
               View all
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {nearby.map((item) => (
               <article key={item.id} className="overflow-hidden rounded-xl border border-blue-200/20 bg-[#0f2f96]/85">
                 <img src={item.image} alt={item.title} className="h-28 w-full object-cover" />
@@ -513,8 +514,8 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="bg-[#f3f5f9] px-4 py-6 text-slate-900 md:px-6 md:py-8">
-        <section className="space-y-3">
+      <div className="bg-[#f3f5f9] py-6 text-slate-900 md:py-8 lg:py-10">
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-slate-800">Featured Properties</h2>
@@ -528,7 +529,7 @@ function HomePage() {
               View all properties
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {featured.map((item, index) => (
               <article key={item.id} className="group relative overflow-hidden rounded-2xl">
                 <img src={item.image} alt={item.title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -550,12 +551,12 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-8 space-y-3">
+        <section className="mt-10 space-y-4">
           <div>
             <h3 className="text-2xl font-semibold text-slate-800">Browse by Category</h3>
             <p className="text-sm text-slate-500">Explore properties that fit your needs</p>
           </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-3 md:gap-5 xl:grid-cols-5">
             {categories.map((category) => (
               <article key={category.label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4">
                 <div className="flex items-center gap-3">
@@ -573,7 +574,7 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-8 space-y-3">
+        <section className="mt-10 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-semibold text-slate-800">Popular Locations</h3>
@@ -583,7 +584,7 @@ function HomePage() {
               View all locations
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-3 md:gap-5 xl:grid-cols-6">
             {locations.map((location) => (
               <article key={location.name} className="relative overflow-hidden rounded-xl">
                 <img src={location.image} alt={location.name} className="h-32 w-full object-cover" />
@@ -597,14 +598,14 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-[#1e3a9e] via-[#2748bd] to-[#1f3ca3] p-4 text-white md:p-5">
-          <div className="grid items-center gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="mt-10 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-[#1e3a9e] via-[#2748bd] to-[#1f3ca3] p-5 text-white md:p-6 lg:p-8">
+          <div className="grid items-center gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:gap-8">
             <div>
               <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-blue-100">
                 NEED HELP?
               </span>
-              <h3 className="mt-2 text-3xl font-semibold leading-tight md:text-[2rem]">Talk to a verified agent today</h3>
-              <p className="mt-2 max-w-xl text-sm text-blue-100/90">
+              <h3 className="mt-2 text-3xl font-semibold leading-tight md:text-[2.1rem] lg:text-[2.25rem]">Talk to a verified agent today</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100/90 md:text-base">
                 Get personalized guidance, schedule property visits, and make informed decisions with ease.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -651,13 +652,13 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
-          <div className="mb-4 text-center">
+        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-5 md:p-6 lg:p-8">
+          <div className="mb-5 text-center md:mb-6">
             <p className="mx-auto inline-block rounded-full bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-600">OUR ADVANTAGES</p>
             <h3 className="mt-2 text-3xl font-semibold text-slate-800">Why choose TrustedHome?</h3>
             <p className="mt-1 text-sm text-slate-500">We make real estate simple, transparent, and rewarding.</p>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {trustItems.map((item) => (
               <article key={item.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-white text-blue-600 shadow-sm">
@@ -670,13 +671,13 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-[#eef1f7] p-4 md:p-6">
+        <section className="mt-10 rounded-2xl bg-[#eef1f7] p-5 md:p-7 lg:p-8">
           <div className="text-center">
             <p className="mx-auto inline-block rounded-full bg-blue-100 px-3 py-1 text-[11px] font-medium text-blue-700">TESTIMONIALS</p>
             <h3 className="mt-2 text-4xl font-semibold text-slate-800">What our clients say</h3>
             <p className="mt-1 text-sm text-slate-500">Real experiences from people who found their perfect space.</p>
           </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-6 grid gap-4 md:grid-cols-3 md:gap-5 lg:gap-6">
             {testimonials.map((item) => (
               <article key={item.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-blue-600">❝</p>
@@ -698,6 +699,7 @@ function HomePage() {
 
         <PropertyMarketingSections />
 
+      </div>
       </div>
     </section>
   )

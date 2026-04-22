@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { promotionRows } from '../../data/agentPromotionsSeed'
+import PromoteListingWizard from './PromoteListingWizard'
 
 const fmtPrice = (naira) => `₦${Number(naira).toLocaleString('en-NG')}`
 
@@ -117,7 +119,9 @@ function MetricCard({ icon, title, value, trend, trendUp }) {
 const MENU_W = 200
 
 export default function AgentPromoteListingsPage() {
+  const navigate = useNavigate()
   const [rows] = useState(() => [...promotionRows])
+  const [promoteWizardOpen, setPromoteWizardOpen] = useState(false)
   const [tab, setTab] = useState('all')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -193,8 +197,10 @@ export default function AgentPromoteListingsPage() {
     }
   }, [menuOpenId])
 
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-4 py-3 text-slate-800 md:px-6 md:py-4">
+  return promoteWizardOpen ? (
+    <PromoteListingWizard onClose={() => setPromoteWizardOpen(false)} />
+  ) : (
+    <div className="flex w-full min-w-0 flex-col px-4 py-3 text-slate-800 md:px-6 md:py-4">
       <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[22px] font-bold leading-tight tracking-tight text-[#111827]">Promote Listings</h1>
@@ -204,6 +210,7 @@ export default function AgentPromoteListingsPage() {
         </div>
         <button
           type="button"
+          onClick={() => setPromoteWizardOpen(true)}
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#6366F1] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition hover:bg-indigo-600"
         >
           <span className="text-base font-bold leading-none">+</span>
@@ -356,6 +363,7 @@ export default function AgentPromoteListingsPage() {
           </select>
           <button
             type="button"
+            onClick={() => navigate('/agent/view-performance')}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2">
@@ -367,9 +375,8 @@ export default function AgentPromoteListingsPage() {
         </div>
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
-        <div className="thin-scroll h-full overflow-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-left">
+      <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <table className="w-full min-w-[1100px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/90">
                 {['LISTING', 'PLATFORM', 'STATUS', 'DURATION', 'BUDGET', 'VIEWS', 'LEADS', 'CTR', 'ACTIONS'].map((h) => (
@@ -424,6 +431,7 @@ export default function AgentPromoteListingsPage() {
                         {row.action === 'performance' ? (
                           <button
                             type="button"
+                            onClick={() => navigate(`/agent/promotions/performance/${row.id}`)}
                             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                           >
                             View Performance
@@ -465,7 +473,6 @@ export default function AgentPromoteListingsPage() {
               )}
             </tbody>
           </table>
-        </div>
       </div>
 
       {menuOpenId && menuRow && typeof document !== 'undefined'
@@ -513,6 +520,7 @@ export default function AgentPromoteListingsPage() {
         </div>
         <button
           type="button"
+          onClick={() => setPromoteWizardOpen(true)}
           className="shrink-0 rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50"
         >
           Boost Another Listing

@@ -93,6 +93,10 @@ function AddListingPage() {
   const [baths, setBaths] = useState(3)
   const [sqm, setSqm] = useState(250)
   const [price, setPrice] = useState('')
+  const [paySmallSmallOpen, setPaySmallSmallOpen] = useState(false)
+  const [payPlan, setPayPlan] = useState('monthly')
+  const [payDurationMonths, setPayDurationMonths] = useState('12')
+  const [payInitialPct, setPayInitialPct] = useState('20')
   const defaultAvail = parseIsoDateParts('')
   const [availY, setAvailY] = useState(defaultAvail.y)
   const [availM, setAvailM] = useState(defaultAvail.mo)
@@ -110,6 +114,11 @@ function AddListingPage() {
 
   const previewTitle = title.trim() || 'Your property title'
   const previewBadge = listingKind === 'Rent' ? 'For Rent' : 'For Sale'
+  const numericPrice = Number(String(price).replace(/\D/g, '')) || 0
+  const initialPctNum = Math.min(90, Math.max(0, Number(payInitialPct) || 0))
+  const durationNum = Math.max(1, Number(payDurationMonths) || 1)
+  const financedAmount = Math.max(0, numericPrice - (numericPrice * initialPctNum) / 100)
+  const perInstallment = financedAmount / durationNum
 
   const yearOptions = useMemo(() => listingYearOptions(), [])
   const dayOpts = useMemo(() => dayOptionsFor(availY, availM), [availY, availM])
@@ -144,6 +153,10 @@ function AddListingPage() {
       if (typeof d.baths === 'number' && Number.isFinite(d.baths)) setBaths(d.baths)
       if (typeof d.sqm === 'number' && Number.isFinite(d.sqm)) setSqm(d.sqm)
       if (typeof d.price === 'string') setPrice(d.price)
+      if (typeof d.paySmallSmallOpen === 'boolean') setPaySmallSmallOpen(d.paySmallSmallOpen)
+      if (typeof d.payPlan === 'string') setPayPlan(d.payPlan)
+      if (typeof d.payDurationMonths === 'string') setPayDurationMonths(d.payDurationMonths)
+      if (typeof d.payInitialPct === 'string') setPayInitialPct(d.payInitialPct)
       if (typeof d.availableFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.availableFrom)) {
         setAvailableFrom(d.availableFrom)
         const p = parseIsoDateParts(d.availableFrom)
@@ -176,6 +189,10 @@ function AddListingPage() {
     baths,
     sqm,
     price,
+    paySmallSmallOpen,
+    payPlan,
+    payDurationMonths,
+    payInitialPct,
     availableFrom,
     features,
     imageUrl: PREVIEW_HERO_IMAGE,
@@ -459,6 +476,70 @@ function AddListingPage() {
                       />
                     </div>
                   </div>
+                  <div className="sm:col-span-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-[13px] font-semibold text-slate-800">Pay Small Small</p>
+                          <p className="mt-0.5 text-[12px] text-slate-500">Enable installment options instead of one-off payment.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPaySmallSmallOpen((v) => !v)}
+                          className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-[13px] font-semibold shadow-sm transition ${
+                            paySmallSmallOpen
+                              ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-200 hover:bg-violet-200/70'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {paySmallSmallOpen ? 'Disable Plan' : 'Enable Plan'}
+                        </button>
+                      </div>
+
+                      {paySmallSmallOpen ? (
+                        <div className="mt-4 grid gap-3 rounded-xl border border-violet-100 bg-white p-3 sm:grid-cols-2">
+                          <label className="space-y-1.5">
+                            <span className="text-sm font-medium text-slate-700">Plan Type</span>
+                            <select
+                              value={payPlan}
+                              onChange={(e) => setPayPlan(e.target.value)}
+                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/15"
+                            >
+                              <option value="monthly">Monthly Installments</option>
+                              <option value="bi-monthly">Every 2 Months</option>
+                              <option value="quarterly">Quarterly</option>
+                            </select>
+                          </label>
+                          <label className="space-y-1.5">
+                            <span className="text-sm font-medium text-slate-700">Duration (Months)</span>
+                            <input
+                              value={payDurationMonths}
+                              onChange={(e) => setPayDurationMonths(e.target.value.replace(/\D/g, ''))}
+                              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                              placeholder="12"
+                              inputMode="numeric"
+                            />
+                          </label>
+                          <label className="space-y-1.5">
+                            <span className="text-sm font-medium text-slate-700">Initial Deposit (%)</span>
+                            <input
+                              value={payInitialPct}
+                              onChange={(e) => setPayInitialPct(e.target.value.replace(/\D/g, ''))}
+                              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                              placeholder="20"
+                              inputMode="numeric"
+                            />
+                          </label>
+                          <div className="rounded-xl border border-violet-100 bg-violet-50/80 px-3 py-2.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Estimated per installment</p>
+                            <p className="mt-1 text-[16px] font-bold tabular-nums text-violet-700">
+                              {perInstallment ? `₦${Math.round(perInstallment).toLocaleString('en-NG')}` : '₦0'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -473,6 +554,16 @@ function AddListingPage() {
                   <div className="flex justify-between"><span className="text-slate-500">Property</span><span className="font-medium">{propertyType}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Location</span><span className="font-medium text-right">{location || `${area}, ${city}`}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-medium">{price ? `₦${Number(price).toLocaleString('en-NG')}` : '—'}</span></div>
+                  {paySmallSmallOpen ? (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-500">Pay Small Small</span>
+                      <span className="text-right font-medium text-violet-700">
+                        {payPlan === 'bi-monthly' ? 'Every 2 Months' : payPlan === 'quarterly' ? 'Quarterly' : 'Monthly'} ·
+                        {' '}
+                        {perInstallment ? `₦${Math.round(perInstallment).toLocaleString('en-NG')}` : '₦0'} x {durationNum} months ({initialPctNum}% upfront)
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
                 <button type="button" className="mt-4 w-full rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white hover:bg-violet-500 sm:w-auto sm:px-8">
                   Publish Listing
@@ -514,6 +605,16 @@ function AddListingPage() {
                   <div className="h-3 w-3/4 max-w-full rounded bg-slate-200" />
                   <div className="h-2 w-1/2 max-w-full rounded bg-slate-200" />
                   <p className="pt-1 text-sm font-semibold text-slate-900">{previewTitle}</p>
+                  {paySmallSmallOpen ? (
+                    <div className="rounded-lg border border-violet-100 bg-violet-50 px-2.5 py-2">
+                      <p className="text-[11px] font-semibold text-violet-700">
+                        Pay Small Small · {payPlan === 'bi-monthly' ? 'Every 2 Months' : payPlan === 'quarterly' ? 'Quarterly' : 'Monthly'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-bold text-violet-700">
+                        {perInstallment ? `₦${Math.round(perInstallment).toLocaleString('en-NG')}` : '₦0'} x {durationNum} months ({initialPctNum}% upfront)
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap gap-3 text-xs text-slate-600">
                     <span className="inline-flex items-center gap-1">
                       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-violet-600" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeWidth="1.6" /></svg>

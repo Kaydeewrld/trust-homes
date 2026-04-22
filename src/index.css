@@ -8,6 +8,18 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
 body {
   margin: 0;
   font-family: 'Space Grotesk', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -19,13 +31,23 @@ body {
   @apply border border-white/25 bg-white/10 backdrop-blur-xl;
 }
 
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+}
+
 .thin-scroll::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 .thin-scroll::-webkit-scrollbar-thumb {
-  background: rgba(191, 219, 254, 0.4);
+  background: rgba(148, 163, 184, 0.45);
   border-radius: 999px;
+}
+
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .no-scrollbar::-webkit-scrollbar {
