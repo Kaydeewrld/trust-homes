@@ -25,6 +25,52 @@ function randomSixDigit() {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
 }
 
+function esc(v) {
+  return String(v || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function otpPurposeLabel(purpose) {
+  if (purpose === OtpPurpose.VERIFY_EMAIL) return 'Email verification'
+  if (purpose === OtpPurpose.PASSWORD_CHANGE) return 'Password change'
+  if (purpose === OtpPurpose.FORGOT_PASSWORD) return 'Password reset'
+  return 'Secure verification'
+}
+
+function renderOtpEmailHtml({ intro, code, purpose }) {
+  const safeIntro = esc(intro)
+  const safeCode = esc(code)
+  const safePurpose = esc(otpPurposeLabel(purpose))
+  return `
+  <div style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
+      <tr>
+        <td style="padding:24px 28px;background:linear-gradient(135deg,#4338ca,#1d4ed8);color:#ffffff">
+          <div style="font-size:20px;font-weight:700;letter-spacing:.2px">TrustedHome</div>
+          <div style="margin-top:6px;font-size:14px;opacity:.92">${safePurpose}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:28px">
+          <p style="margin:0 0 10px;font-size:15px;line-height:1.65;color:#334155">${safeIntro}</p>
+          <div style="margin:18px 0;padding:18px 16px;border-radius:12px;border:1px dashed #c7d2fe;background:#eef2ff;text-align:center">
+            <div style="font-size:12px;letter-spacing:.1em;color:#64748b;text-transform:uppercase;margin-bottom:6px">Your code</div>
+            <div style="font-size:32px;font-weight:800;letter-spacing:.28em;color:#312e81">${safeCode}</div>
+          </div>
+          <p style="margin:0 0 10px;font-size:14px;line-height:1.65;color:#334155">This code expires in <strong>10 minutes</strong>.</p>
+          <p style="margin:0;font-size:13px;line-height:1.65;color:#94a3b8">
+            For your security, never share this code with anyone. TrustedHome staff will never ask for it.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>`
+}
+
 export async function createAndDeliverOtp({ email, purpose, mailSubject, mailIntro }) {
   const e = String(email || '').trim().toLowerCase()
   if (!e) {
@@ -54,7 +100,7 @@ export async function createAndDeliverOtp({ email, purpose, mailSubject, mailInt
     to: e,
     subject: mailSubject,
     text: body,
-    html: `<p>${mailIntro}</p><p style="font-size:22px;font-weight:bold;letter-spacing:0.2em">${code}</p><p style="color:#64748b;font-size:13px">Expires in 10 minutes. If you did not request this, you can ignore this email.</p>`,
+    html: renderOtpEmailHtml({ intro: mailIntro, code, purpose }),
   })
 
   return { delivered: true }

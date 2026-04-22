@@ -3,6 +3,7 @@ import { hashPassword, verifyPassword } from '../utils/password.js'
 import { signAppToken } from '../utils/jwt.js'
 import { assertPasswordStrength } from '../utils/passwordPolicy.js'
 import { createAndDeliverOtp, verifyOtpRecord, OtpPurpose } from './otpService.js'
+import { sendWelcomeEmail } from './mailService.js'
 import { createId } from '../utils/createId.js'
 
 const UserRole = { USER: 'USER', AGENT: 'AGENT' }
@@ -117,6 +118,11 @@ export async function register({ email, password, displayName, role, phone, agen
   } catch (err) {
     console.error('[auth] verify-email OTP send failed (account was created):', err?.message || err)
     emailDelivery = 'failed'
+  }
+  try {
+    await sendWelcomeEmail({ to: e, displayName: user.displayName })
+  } catch (err) {
+    console.error('[auth] welcome email send failed (account was created):', err?.message || err)
   }
   const token = signAppToken({ sub: user.id, email: user.email, role: user.role })
   const out = { token, user: publicUser(user) }
