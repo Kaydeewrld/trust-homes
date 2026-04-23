@@ -1,12 +1,18 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useFavorites } from '../context/FavoritesContext'
 import { properties } from '../data/properties'
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../context/AuthContext.jsx'
+import { useToast } from '../context/ToastContext.jsx'
+import { paymentListingInit } from '../lib/api.js'
 
 function PropertyDetailsPage() {
+  const navigate = useNavigate()
   const { id } = useParams()
   const property = properties.find((item) => item.id === id)
   const { isFavorite, toggleFavorite } = useFavorites()
+  const { token, user } = useAuth()
+  const toast = useToast()
   const gallery = useMemo(
     () => [
       property?.image,
@@ -35,6 +41,8 @@ function PropertyDetailsPage() {
     setActiveImage(gallery[0])
   }, [gallery])
 
+  const [paying, setPaying] = useState(false)
+
   const formatNaira = (amount, purpose) => {
     const value = `₦${new Intl.NumberFormat('en-NG').format(amount)}`
     if (purpose === 'Rent') return `${value} / year`
@@ -51,6 +59,30 @@ function PropertyDetailsPage() {
         </Link>
       </section>
     )
+  }
+
+  const startPaystackListingPayment = async () => {
+    if (!user || !token) {
+      const next = `/property/${encodeURIComponent(property.id)}`
+      toast.warning('Login required', 'Please log in first to continue with secure payment.')
+      navigate(`/login?next=${encodeURIComponent(next)}`)
+      return
+    }
+    setPaying(true)
+    try {
+      const callbackUrl = `${window.location.origin}/payments/callback`
+      const data = await paymentListingInit(token, { listingId: property.id, callbackUrl })
+      const checkoutUrl = data?.authorization_url
+      if (!checkoutUrl) {
+        toast.error('Payment could not start', 'No checkout URL returned from server.')
+        return
+      }
+      window.location.assign(checkoutUrl)
+    } catch (err) {
+      toast.error('Payment failed', err.message || 'Unable to start Paystack checkout for this property.')
+    } finally {
+      setPaying(false)
+    }
   }
 
   return (
@@ -229,6 +261,17 @@ function PropertyDetailsPage() {
                 <span className="text-xs font-medium text-slate-500"> / month</span>
               </p>
             </div>
+            <button
+              type="button"
+              disabled={paying}
+              onClick={startPaystackListingPayment}
+              className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {paying ? 'Redirecting…' : 'Pay Securely with Paystack'}
+            </button>
+            <p className="mt-2 text-[11px] text-slate-500">
+              Payments are processed on TrustedHome via Paystack. Funds are handled on-platform.
+            </p>
           </article>
 
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
