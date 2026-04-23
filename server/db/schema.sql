@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS "AgentProfile" (
   "userId" TEXT NOT NULL UNIQUE REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   "agencyName" TEXT,
   "licenseId" TEXT,
+  "nin" TEXT,
+  "verificationPhotoUrl" TEXT,
+  "emergencyContact" TEXT,
+  "verificationRequestedAt" TIMESTAMP(3),
   "verified" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP

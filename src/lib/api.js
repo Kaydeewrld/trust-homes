@@ -79,6 +79,14 @@ export function authChangePassword(token, payload) {
   return apiFetch('/auth/password', { method: 'PUT', token, body: payload })
 }
 
+export function agentVerificationStatus(token) {
+  return apiFetch('/agent/verification-status', { token })
+}
+
+export function agentSubmitVerificationRequest(token, payload) {
+  return apiFetch('/agent/verification-request', { method: 'POST', token, body: payload })
+}
+
 export function walletGet(token) {
   return apiFetch('/wallet', { token })
 }

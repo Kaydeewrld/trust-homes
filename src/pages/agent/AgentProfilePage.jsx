@@ -1,7 +1,12 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { authChangePassword, authRequestPasswordChangeOtp } from '../../lib/api.js'
+import {
+  agentSubmitVerificationRequest,
+  agentVerificationStatus,
+  authChangePassword,
+  authRequestPasswordChangeOtp,
+} from '../../lib/api.js'
 
 function passwordClientHint(pw) {
   const p = String(pw || '')
@@ -137,6 +142,21 @@ export default function AgentProfilePage() {
   const [activeTab, setActiveTab] = useState('personal')
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [otpOpen, setOtpOpen] = useState(false)
+  const [verificationOpen, setVerificationOpen] = useState(false)
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false)
+  const [verificationStatus, setVerificationStatus] = useState({
+    verificationStatus: 'PENDING',
+    verified: false,
+    nin: '',
+    verificationPhotoUrl: '',
+    emergencyContact: '',
+    profileUpdatedAt: null,
+  })
+  const [verificationForm, setVerificationForm] = useState({
+    nin: '',
+    verificationPhotoUrl: '',
+    emergencyContact: '',
+  })
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' })
   const [otp, setOtp] = useState('')
   const [form, setForm] = useState({
@@ -156,6 +176,36 @@ export default function AgentProfilePage() {
   })
 
   const completionPct = 85
+
+  const loadVerificationStatus = useCallback(async () => {
+    if (!token) return
+    try {
+      const data = await agentVerificationStatus(token)
+      setVerificationStatus({
+        verificationStatus: data.verificationStatus || 'PENDING',
+        verified: Boolean(data.verified),
+        nin: data.nin || '',
+        verificationPhotoUrl: data.verificationPhotoUrl || '',
+        emergencyContact: data.emergencyContact || '',
+        profileUpdatedAt: data.profileUpdatedAt || null,
+      })
+    } catch (e) {
+      console.error('[agent-profile] could not load verification status:', e?.message || e)
+    }
+  }, [token])
+
+  useEffect(() => {
+    loadVerificationStatus()
+  }, [loadVerificationStatus])
+
+  useEffect(() => {
+    if (!verificationOpen) return
+    setVerificationForm({
+      nin: verificationStatus.nin || '',
+      verificationPhotoUrl: verificationStatus.verificationPhotoUrl || '',
+      emergencyContact: verificationStatus.emergencyContact || '',
+    })
+  }, [verificationOpen, verificationStatus])
 
   const update = (key, value) => setForm((s) => ({ ...s, [key]: value }))
   const outlineBtn =
@@ -225,6 +275,43 @@ export default function AgentProfilePage() {
       toast.error('Update failed', e.message || 'Check your current password and OTP.')
     }
   }, [otp, pwd, toast, token])
+
+  const submitVerificationRequest = useCallback(async () => {
+    if (!token) {
+      toast.warning('Session missing', 'Sign in again and retry.')
+      return
+    }
+    const nin = String(verificationForm.nin || '').trim()
+    const photo = String(verificationForm.verificationPhotoUrl || '').trim()
+    const emergency = String(verificationForm.emergencyContact || '').trim()
+    if (nin.length < 6) {
+      toast.warning('Invalid NIN', 'Enter a valid NIN.')
+      return
+    }
+    if (!/^https?:\/\//i.test(photo)) {
+      toast.warning('Photo link required', 'Paste a valid image URL for your clear photograph.')
+      return
+    }
+    if (emergency.length < 5) {
+      toast.warning('Emergency contact required', 'Enter a valid emergency contact phone number.')
+      return
+    }
+    setVerificationSubmitting(true)
+    try {
+      await agentSubmitVerificationRequest(token, {
+        nin,
+        verificationPhotoUrl: photo,
+        emergencyContact: emergency,
+      })
+      await loadVerificationStatus()
+      setVerificationOpen(false)
+      toast.success('Verification submitted', 'Your request is pending admin approval.')
+    } catch (e) {
+      toast.error('Submission failed', e.message || 'Could not submit verification request.')
+    } finally {
+      setVerificationSubmitting(false)
+    }
+  }, [loadVerificationStatus, token, toast, verificationForm])
 
   const progressRows = useMemo(
     () => [
@@ -462,11 +549,27 @@ export default function AgentProfilePage() {
             </button>
           </SummaryCard>
 
-          <SummaryCard title="Account Verification" subtitle="Your account is verified and eligible for promotions.">
-            <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5 text-[12px] text-emerald-800">
-              <span className="mt-0.5 text-emerald-600">✓</span>
-              <span>Verified on Jan 15, 2025</span>
-            </div>
+          <SummaryCard title="Account Verification" subtitle="Submit your identity details for the verification badge.">
+            {verificationStatus.verificationStatus === 'VERIFIED' ? (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5 text-[12px] text-emerald-800">
+                <span className="mt-0.5 text-emerald-600">✓</span>
+                <span>Verified badge active. Your listings show verification.</span>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2.5 text-[12px] text-amber-800">
+                <p className="font-semibold">Verification pending</p>
+                <p className="mt-1">
+                  Submit NIN, clear photograph link, and emergency contact for admin approval.
+                </p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setVerificationOpen(true)}
+              className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              {verificationStatus.verificationStatus === 'VERIFIED' ? 'Update verification details' : 'Request verification'}
+            </button>
           </SummaryCard>
 
           <SummaryCard title="Quick Actions">
@@ -505,6 +608,49 @@ export default function AgentProfilePage() {
           </div>
         </div>
       </div>
+
+      <BaseModal
+        open={verificationOpen}
+        onClose={() => setVerificationOpen(false)}
+        title="Request Verification Badge"
+        subtitle="Submit your identity details. Admin will review and approve."
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" className={outlineBtn} onClick={() => setVerificationOpen(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={verificationSubmitting}
+              onClick={submitVerificationRequest}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#6366F1] px-5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {verificationSubmitting ? 'Submitting…' : 'Submit Request'}
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <InputField
+            label="NIN"
+            value={verificationForm.nin}
+            onChange={(v) => setVerificationForm((s) => ({ ...s, nin: v }))}
+          />
+          <InputField
+            label="Clear Photograph URL"
+            value={verificationForm.verificationPhotoUrl}
+            onChange={(v) => setVerificationForm((s) => ({ ...s, verificationPhotoUrl: v }))}
+          />
+          <InputField
+            label="Emergency Contact"
+            value={verificationForm.emergencyContact}
+            onChange={(v) => setVerificationForm((s) => ({ ...s, emergencyContact: v }))}
+          />
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            Use an HTTPS image URL for your clear portrait photo. After submission, admin will review and approve your badge.
+          </p>
+        </div>
+      </BaseModal>
 
       <BaseModal
         open={changePasswordOpen}

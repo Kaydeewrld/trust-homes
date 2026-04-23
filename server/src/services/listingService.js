@@ -1,6 +1,18 @@
 import { query } from '../db.js'
 import { createId } from '../utils/createId.js'
 
+const LISTING_SELECT = `SELECT
+  l.*,
+  u.role AS "ownerRole",
+  COALESCE(ap.verified, false) AS "ownerAgentVerified",
+  CASE
+    WHEN u.role = 'AGENT'::"UserRole" AND COALESCE(ap.verified, false) = true THEN true
+    ELSE false
+  END AS "verificationBadge"
+FROM "Listing" l
+JOIN "User" u ON u.id = l."ownerId"
+LEFT JOIN "AgentProfile" ap ON ap."userId" = u.id`
+
 function mapListing(r) {
   if (!r) return null
   return {
@@ -16,6 +28,9 @@ function mapListing(r) {
     bedrooms: r.bedrooms,
     bathrooms: r.bathrooms,
     areaSqm: r.areasqm ?? r.areaSqm,
+    ownerRole: r.ownerrole ?? r.ownerRole ?? null,
+    verificationBadge: Boolean(r.verificationbadge ?? r.verificationBadge),
+    ownerAgentVerified: Boolean(r.owneragentverified ?? r.ownerAgentVerified),
     createdAt: r.createdat ?? r.createdAt,
     updatedAt: r.updatedat ?? r.updatedAt,
   }
@@ -74,14 +89,14 @@ export async function createListing(ownerId, body) {
       areaSqm != null ? Math.floor(Number(areaSqm)) : null,
     ],
   )
-  return mapListing(rows[0])
+  return getListingCoreById(rows[0]?.id || id)
 }
 
 export async function listListings({ status, take = 50, skip = 0 }) {
   const lim = Math.min(take, 100)
   const { rows } = await query(
-    `SELECT * FROM "Listing"
-     WHERE ($1::text IS NULL OR status = $1::"ListingStatus")
+    `${LISTING_SELECT}
+     WHERE ($1::text IS NULL OR l.status = $1::"ListingStatus")
      ORDER BY "createdAt" DESC
      LIMIT $2 OFFSET $3`,
     [status || null, lim, skip],
@@ -90,8 +105,7 @@ export async function listListings({ status, take = 50, skip = 0 }) {
 }
 
 export async function getListing(id) {
-  const { rows: lrows } = await query('SELECT * FROM "Listing" WHERE id = $1 LIMIT 1', [id])
-  const listing = mapListing(lrows[0])
+  const listing = await getListingCoreById(id)
   if (!listing) {
     const err = new Error('Listing not found')
     err.status = 404
@@ -106,8 +120,7 @@ export async function getListing(id) {
 }
 
 export async function updateListing(id, ownerId, patch) {
-  const { rows: curRows } = await query('SELECT * FROM "Listing" WHERE id = $1 LIMIT 1', [id])
-  const row = mapListing(curRows[0])
+  const row = await getListingCoreById(id)
   if (!row) {
     const err = new Error('Listing not found')
     err.status = 404
@@ -168,12 +181,11 @@ export async function updateListing(id, ownerId, patch) {
     `UPDATE "Listing" SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING *`,
     vals,
   )
-  return mapListing(rows[0])
+  return getListingCoreById(rows[0]?.id || id)
 }
 
 export async function deleteListing(id, ownerId) {
-  const { rows: curRows } = await query('SELECT * FROM "Listing" WHERE id = $1 LIMIT 1', [id])
-  const row = mapListing(curRows[0])
+  const row = await getListingCoreById(id)
   if (!row) {
     const err = new Error('Listing not found')
     err.status = 404
@@ -188,4 +200,9 @@ export async function deleteListing(id, ownerId) {
   }
   await query('DELETE FROM "Listing" WHERE id = $1', [id])
   return { ok: true }
+}
+
+async function getListingCoreById(id) {
+  const { rows } = await query(`${LISTING_SELECT} WHERE l.id = $1 LIMIT 1`, [id])
+  return mapListing(rows[0])
 }
