@@ -25,10 +25,28 @@ function required(name, { allowEmpty = false } = {}) {
   return v
 }
 
+/** Public app URL for email CTAs (optional; else first `CLIENT_ORIGIN` entry). */
+function appPublicUrl() {
+  const explicit = normalizeOriginUrl(process.env.APP_PUBLIC_URL || '')
+  if (explicit) return explicit
+  const origins = parseClientOrigins(process.env.CLIENT_ORIGIN)
+  return origins[0] || ''
+}
+
+/** Comma-separated internal emails for payment / transaction alerts. */
+function parseOpsNotifyEmails(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.includes('@'))
+}
+
 export const config = {
   port: Number(process.env.PORT || 4000),
   /** Allowed browser origins for CORS (comma-separated in `CLIENT_ORIGIN`). */
   clientOrigins: parseClientOrigins(process.env.CLIENT_ORIGIN),
+  /** Base URL for links in marketing emails (e.g. https://trust-homes.vercel.app). */
+  appPublicUrl: appPublicUrl(),
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET || '',
   otpPepper: process.env.OTP_PEPPER || '',
@@ -46,6 +64,8 @@ export const config = {
   smtpPass: String(process.env.SMTP_PASS || '').replace(/\s+/g, ''),
   smtpSecure: process.env.SMTP_SECURE === '1' || process.env.SMTP_SECURE === 'true',
   mailFrom: (process.env.MAIL_FROM || '').trim(),
+  /** Comma-separated — receives payment success + transaction alerts (same SMTP). */
+  opsNotifyEmails: parseOpsNotifyEmails(process.env.OPS_NOTIFY_EMAIL),
 }
 
 export function assertConfig() {

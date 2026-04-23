@@ -3,6 +3,7 @@ import * as authController from '../controllers/authController.js'
 import * as adminAuthController from '../controllers/adminAuthController.js'
 import * as listingController from '../controllers/listingController.js'
 import * as paymentController from '../controllers/paymentController.js'
+import * as walletController from '../controllers/walletController.js'
 import { requireAppAuth } from '../middlewares/appAuth.js'
 import { requireStaffAuth } from '../middlewares/staffAuth.js'
 
@@ -33,5 +34,11 @@ r.put('/listings/:id', requireAppAuth, listingController.update)
 r.delete('/listings/:id', requireAppAuth, listingController.remove)
 
 r.post('/payments/initialize', requireAppAuth, paymentController.initializePayment)
+r.post('/payments/listing/init', requireAppAuth, paymentController.initListingPayment)
+r.get('/payments/status/:reference', requireAppAuth, paymentController.verifyPaymentStatus)
+
+r.get('/wallet', requireAppAuth, walletController.getWallet)
+r.get('/wallet/payments', requireAppAuth, walletController.listWalletPayments)
+r.post('/wallet/fund', requireAppAuth, walletController.fundWallet)
 
 export const apiRouter = r

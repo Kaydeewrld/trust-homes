@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import CustomDropdown from '../components/CustomDropdown'
@@ -84,8 +84,16 @@ function FieldIcon({ children }) {
 const inpBase =
   'h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-11 pr-3 text-[15px] text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#5D5FEF] focus:ring-2 focus:ring-[#5D5FEF]/20'
 
+function safeNextPath(raw) {
+  if (!raw || typeof raw !== 'string') return null
+  const s = raw.trim()
+  if (!s.startsWith('/') || s.startsWith('//')) return null
+  return s
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { applySession } = useAuth()
   const toast = useToast()
   const [email, setEmail] = useState('')
@@ -249,8 +257,11 @@ export default function LoginPage() {
                 try {
                   const data = await authLogin({ email: trimmed, password, intent })
                   applySession({ token: data.token, user: data.user })
+                  const next = safeNextPath(searchParams.get('next'))
                   if (!data.user?.emailVerified) {
                     navigate(`/verify-email?email=${encodeURIComponent(trimmed)}`)
+                  } else if (next) {
+                    navigate(next)
                   } else {
                     navigate(signInAs === 'Agent' ? '/agent' : '/explore')
                   }

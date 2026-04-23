@@ -16,6 +16,7 @@ const definition = {
     { name: 'Admin' },
     { name: 'Listings' },
     { name: 'Payments' },
+    { name: 'Wallet' },
   ],
   components: {
     securitySchemes: {
@@ -200,12 +201,26 @@ const definition = {
       },
       PaymentInitializeRequest: {
         type: 'object',
-        required: ['email', 'amountNgn'],
+        required: ['amountNgn'],
         properties: {
-          email: { type: 'string', format: 'email' },
           amountNgn: { type: 'number', example: 25000 },
+          callbackUrl: { type: 'string', format: 'uri', description: 'Must match CLIENT_ORIGIN (e.g. your Vercel app URL).' },
+        },
+      },
+      WalletFundRequest: {
+        type: 'object',
+        required: ['amountNgn'],
+        properties: {
+          amountNgn: { type: 'number', example: 50000 },
           callbackUrl: { type: 'string', format: 'uri' },
-          metadata: { type: 'object', additionalProperties: true },
+        },
+      },
+      ListingPaymentInitRequest: {
+        type: 'object',
+        required: ['listingId'],
+        properties: {
+          listingId: { type: 'string' },
+          callbackUrl: { type: 'string', format: 'uri' },
         },
       },
     },
@@ -528,10 +543,72 @@ const definition = {
         },
       },
     },
+    '/api/wallet': {
+      get: {
+        tags: ['Wallet'],
+        summary: 'Wallet balance',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'Balance',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { ok: { type: 'boolean' }, currency: { type: 'string' }, balanceNgn: { type: 'integer' } } },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/wallet/payments': {
+      get: {
+        tags: ['Wallet'],
+        summary: 'Recent Paystack-linked payments for the user',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'take', in: 'query', schema: { type: 'integer', default: 20 } }],
+        responses: {
+          200: {
+            description: 'Payments',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { ok: { type: 'boolean' }, payments: { type: 'array', items: { type: 'object' } } } },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/wallet/fund': {
+      post: {
+        tags: ['Wallet'],
+        summary: 'Start wallet top-up (Paystack)',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/WalletFundRequest' } } } },
+        responses: { 200: { description: 'Paystack checkout initialized' } },
+      },
+    },
+    '/api/payments/listing/init': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Pay for a listing via Paystack (platform checkout)',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ListingPaymentInitRequest' } } } },
+        responses: { 200: { description: 'Paystack checkout initialized' } },
+      },
+    },
+    '/api/payments/status/{reference}': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Verify payment status (calls Paystack verify if still pending)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'reference', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Status' } },
+      },
+    },
     '/api/payments/initialize': {
       post: {
         tags: ['Payments'],
-        summary: 'Initialize payment',
+        summary: 'Initialize wallet top-up (legacy path)',
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,

@@ -79,6 +79,35 @@ export function authChangePassword(token, payload) {
   return apiFetch('/auth/password', { method: 'PUT', token, body: payload })
 }
 
+export function walletGet(token) {
+  return apiFetch('/wallet', { token })
+}
+
+export function walletPayments(token, take) {
+  const q = take != null ? `?take=${encodeURIComponent(String(take))}` : ''
+  return apiFetch(`/wallet/payments${q}`, { token })
+}
+
+/** Start Paystack checkout to add NGN to the signed-in user wallet. */
+export function walletFund(token, payload) {
+  return apiFetch('/wallet/fund', { method: 'POST', token, body: payload })
+}
+
+/** Legacy: same as walletFund. */
+export function paymentInitialize(token, payload) {
+  return apiFetch('/payments/initialize', { method: 'POST', token, body: payload })
+}
+
+/** Paystack checkout for listing price (platform payment; not paid to agent directly). */
+export function paymentListingInit(token, payload) {
+  return apiFetch('/payments/listing/init', { method: 'POST', token, body: payload })
+}
+
+/** After redirect from Paystack, poll until status is SUCCESS (also triggers server verify). */
+export function paymentStatus(token, reference) {
+  return apiFetch(`/payments/status/${encodeURIComponent(reference)}`, { token })
+}
+
 export function adminAuthLogin(payload) {
   return apiFetch('/admin/auth/login', { method: 'POST', body: payload })
 }

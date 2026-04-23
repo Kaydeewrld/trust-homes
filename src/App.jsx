@@ -12,6 +12,7 @@ import SignUpPage from './pages/SignUpPage'
 import LoginPage from './pages/LoginPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import PaymentsCallbackPage from './pages/PaymentsCallbackPage'
 import AgentDashboardLayout from './layouts/AgentDashboardLayout'
 import AgentOverviewPage from './pages/agent/AgentOverviewPage'
 import AgentSettingsPage from './pages/agent/AgentSettingsPage'
@@ -52,7 +53,8 @@ function App() {
   const isLogin = location.pathname === '/login'
   const isVerifyEmail = location.pathname === '/verify-email'
   const isForgotPassword = location.pathname === '/forgot-password'
-  const isAuthShell = isLogin || isSignUp || isVerifyEmail || isForgotPassword
+  const isPaymentsCallback = location.pathname === '/payments/callback'
+  const isAuthShell = isLogin || isSignUp || isVerifyEmail || isForgotPassword || isPaymentsCallback
   const isAgent = location.pathname.startsWith('/agent')
   const isAdmin = location.pathname.startsWith('/admin')
   const isAdminLogin = location.pathname === '/admin/login'
@@ -72,7 +74,7 @@ function App() {
               ? 'flex min-h-svh flex-col overflow-x-hidden bg-[#F9FAFB] text-slate-900'
               : isHome
                 ? 'min-h-screen bg-[#f4fbff] text-slate-900'
-                : isLogin || isForgotPassword
+                : isLogin || isForgotPassword || isPaymentsCallback
                   ? 'relative flex h-svh max-h-svh min-h-0 flex-col overflow-hidden bg-[#f6f7fb] text-slate-900'
                   : isSignUp || isVerifyEmail
                     ? 'relative flex h-svh max-h-svh min-h-0 flex-col overflow-hidden bg-[#f6f7fb] text-slate-900'
@@ -132,6 +134,7 @@ function App() {
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/payments/callback" element={<PaymentsCallbackPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/add-listing/preview" element={<ListingPreviewPage />} />
               <Route path="/add-listing" element={<AddListingPage />} />

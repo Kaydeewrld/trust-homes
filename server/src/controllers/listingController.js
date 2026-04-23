@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as listingService from '../services/listingService.js'
+import { esc, sendTransactionAlertEmails } from '../services/transactionEmailService.js'
 
 const createSchema = z.object({
   title: z.string().min(2),
@@ -19,6 +20,13 @@ export async function create(req, res, next) {
   try {
     const body = createSchema.parse(req.body)
     const row = await listingService.createListing(req.user.id, body)
+    void sendTransactionAlertEmails({
+      title: 'Listing submitted',
+      summaryHtml: `<p><strong>${esc(row.title)}</strong> is <strong>pending review</strong>. We will notify you when it is approved.</p><p style="margin-top:10px;color:#64748b;font-size:13px">Reference ID: <code style="background:#f1f5f9;padding:2px 6px;border-radius:6px">${esc(row.id)}</code></p>`,
+      summaryText: `Listing "${row.title}" submitted and pending review. Id: ${row.id}`,
+      userEmail: req.user.email,
+      userDisplayName: String(req.user.email || '').split('@')[0] || 'Member',
+    }).catch((err) => console.error('[listing] submit alert email failed:', err?.message || err))
     res.status(201).json({ ok: true, listing: row })
   } catch (e) {
     if (e instanceof z.ZodError) return res.status(400).json({ ok: false, error: e.issues[0]?.message || 'Invalid body' })

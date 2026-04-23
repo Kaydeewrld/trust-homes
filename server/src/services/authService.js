@@ -3,7 +3,8 @@ import { hashPassword, verifyPassword } from '../utils/password.js'
 import { signAppToken } from '../utils/jwt.js'
 import { assertPasswordStrength } from '../utils/passwordPolicy.js'
 import { createAndDeliverOtp, verifyOtpRecord, OtpPurpose } from './otpService.js'
-import { sendWelcomeEmail } from './mailService.js'
+import { sendWelcomeEmail, schedulePostVerificationNewsletter } from './mailService.js'
+import { sendTransactionAlertEmails } from './transactionEmailService.js'
 import { createId } from '../utils/createId.js'
 
 const UserRole = { USER: 'USER', AGENT: 'AGENT' }
@@ -119,11 +120,6 @@ export async function register({ email, password, displayName, role, phone, agen
     console.error('[auth] verify-email OTP send failed (account was created):', err?.message || err)
     emailDelivery = 'failed'
   }
-  try {
-    await sendWelcomeEmail({ to: e, displayName: user.displayName })
-  } catch (err) {
-    console.error('[auth] welcome email send failed (account was created):', err?.message || err)
-  }
   const token = signAppToken({ sub: user.id, email: user.email, role: user.role })
   const out = { token, user: publicUser(user) }
   if (emailDelivery === 'failed') out.emailDelivery = 'failed'
@@ -188,6 +184,12 @@ export async function verifyEmailWithOtp({ email, code }) {
   )
   const updated = mapUserRow(rows[0])
   const token = signAppToken({ sub: updated.id, email: updated.email, role: updated.role })
+
+  void sendWelcomeEmail({ to: updated.email, displayName: updated.displayName }).catch((err) => {
+    console.error('[auth] welcome email send failed after verify:', err?.message || err)
+  })
+  schedulePostVerificationNewsletter({ to: updated.email, displayName: updated.displayName })
+
   return { token, user: publicUser(updated) }
 }
 
@@ -269,6 +271,14 @@ export async function resetPasswordWithForgotOtp({ email, otp, newPassword }) {
   }
   const passwordHash = await hashPassword(newPassword)
   await query(`UPDATE "User" SET "passwordHash" = $2, "updatedAt" = NOW() WHERE id = $1`, [user.id, passwordHash])
+  void sendTransactionAlertEmails({
+    title: 'Password reset complete',
+    summaryHtml:
+      '<p>Your TrustedHome password was reset using a one-time code.</p><p style="margin-top:12px;color:#64748b;font-size:13px">If you did not do this, contact support immediately.</p>',
+    summaryText: 'Your TrustedHome password was reset via forgot-password flow.',
+    userEmail: user.email,
+    userDisplayName: user.displayName,
+  }).catch((err) => console.error('[auth] forgot-password alert email failed:', err?.message || err))
   return { ok: true }
 }
 
@@ -301,6 +311,14 @@ export async function changePasswordWithOtp({ userId, currentPassword, newPasswo
   }
   const passwordHash = await hashPassword(newPassword)
   await query(`UPDATE "User" SET "passwordHash" = $2, "updatedAt" = NOW() WHERE id = $1`, [userId, passwordHash])
+  void sendTransactionAlertEmails({
+    title: 'Password updated',
+    summaryHtml:
+      '<p>Your TrustedHome password was changed successfully.</p><p style="margin-top:12px;color:#64748b;font-size:13px">If you did not do this, secure your email and contact support immediately.</p>',
+    summaryText: 'Your TrustedHome password was changed successfully. If this was not you, contact support.',
+    userEmail: user.email,
+    userDisplayName: user.displayName,
+  }).catch((err) => console.error('[auth] password-change alert email failed:', err?.message || err))
   return { ok: true }
 }
 
