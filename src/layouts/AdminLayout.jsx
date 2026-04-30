@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../context/AdminAuthContext'
 
@@ -131,9 +131,14 @@ function NavIcon({ name }) {
 }
 
 export default function AdminLayout() {
-  const { isAuthenticated, adminEmail, logout } = useAdminAuth()
+  const { isAuthenticated, adminEmail, refreshSession, logout } = useAdminAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    void refreshSession()
+  }, [isAuthenticated, refreshSession])
 
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />
 

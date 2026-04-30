@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { adminTransactions as adminTransactionsSeed } from '../../data/adminSeed'
 import AdminModalShell from './AdminModalShell'
+import { useAdminAuth } from '../../context/AdminAuthContext'
+import { adminTransactionsList } from '../../lib/api'
 
 const PAGE_SIZE = 6
 
@@ -46,6 +48,8 @@ function SectionTitle({ children }) {
 
 export default function AdminTransactionsPage() {
   const toast = useToast()
+  const { adminToken } = useAdminAuth()
+  const [liveRows, setLiveRows] = useState([])
   const [rows, setRows] = useState(() => adminTransactionsSeed.map((r) => ({ ...r })))
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -54,6 +58,36 @@ export default function AdminTransactionsPage() {
   const [page, setPage] = useState(1)
   const [viewRow, setViewRow] = useState(null)
   const [confirm, setConfirm] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!adminToken) return
+    ;(async () => {
+      try {
+        const out = await adminTransactionsList(adminToken, { take: 300 })
+        const mapped = Array.isArray(out?.transactions) ? out.transactions : []
+        if (!cancelled) setLiveRows(mapped)
+      } catch (err) {
+        if (!cancelled) toast.error('Could not load live transactions', err?.message || 'Using seed data only.')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [adminToken, toast])
+
+  useEffect(() => {
+    const merged = [...liveRows, ...adminTransactionsSeed.map((r) => ({ ...r }))]
+    const seen = new Set()
+    setRows(
+      merged.filter((row) => {
+        const key = String(row.id || row.reference || '')
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+      }),
+    )
+  }, [liveRows])
 
   const typeOptions = useMemo(() => {
     const s = new Set(rows.map((r) => r.type).filter(Boolean))

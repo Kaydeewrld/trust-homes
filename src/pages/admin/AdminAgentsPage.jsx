@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { adminAgents as adminAgentsSeed } from '../../data/adminSeed'
 import AdminModalShell from './AdminModalShell'
+import { useAdminAuth } from '../../context/AdminAuthContext'
+import { adminPendingAgentVerifications, adminSetAgentVerification } from '../../lib/api'
 
 const PAGE_SIZE = 6
 
@@ -63,13 +65,96 @@ function SectionTitle({ children }) {
 
 export default function AdminAgentsPage() {
   const toast = useToast()
-  const agents = useMemo(() => adminAgentsSeed.map((r) => ({ ...r })), [])
+  const { adminToken } = useAdminAuth()
+  const [livePending, setLivePending] = useState([])
+  const agents = useMemo(() => {
+    const seed = adminAgentsSeed.map((r) => ({ ...r }))
+    const mappedLive = livePending.map((a) => ({
+      id: String(a.userId || ''),
+      name: a.agencyName || a.displayName || 'Agent',
+      contactName: a.displayName || 'Agent',
+      email: a.email || '—',
+      phone: a.phone || a.emergencyContact || '—',
+      city: '—',
+      rcNumber: a.licenseId || '—',
+      verify: 'Pending',
+      accountStatus: 'Pending review',
+      listings: 0,
+      activeListings: 0,
+      commission: '₦0',
+      walletBalance: '₦0',
+      health: 'Review',
+      registeredAt: a.profileCreatedAt ? new Date(a.profileCreatedAt).toLocaleDateString('en-NG') : '—',
+      address: '—',
+      taxId: '—',
+      kycLevel: 'Tier 1',
+      documentsStatus: a.verificationPhotoUrl ? 'Submitted' : 'Missing',
+      ninMasked: a.nin ? `***${String(a.nin).slice(-4)}` : '—',
+      bvnMasked: '—',
+      leadResponseAvg: '—',
+      complaints90d: 0,
+      pendingPayout: '₦0',
+      lifetimePayouts: '₦0',
+      lastPayoutAt: '—',
+      lastPayoutAmount: '₦0',
+      payoutMethod: 'Bank transfer',
+      payoutAccounts: [],
+      internalNotes: a.verificationRequestedAt
+        ? `Verification requested at ${new Date(a.verificationRequestedAt).toLocaleString('en-NG')}`
+        : 'Verification request submitted.',
+    }))
+    const merged = [...mappedLive, ...seed]
+    const seen = new Set()
+    return merged.filter((row) => {
+      const key = String(row.id || '')
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [livePending])
   const [search, setSearch] = useState('')
   const [verifyFilter, setVerifyFilter] = useState('all')
   const [healthFilter, setHealthFilter] = useState('all')
   const [accountFilter, setAccountFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [viewAgent, setViewAgent] = useState(null)
+  const [moderatingByUserId, setModeratingByUserId] = useState({})
+
+  useEffect(() => {
+    if (!adminToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const out = await adminPendingAgentVerifications(adminToken)
+        const rows = Array.isArray(out?.agents) ? out.agents : []
+        if (!cancelled) setLivePending(rows)
+      } catch (e) {
+        if (!cancelled) setLivePending([])
+        toast.error('Could not load live verification queue', e?.message || 'Please refresh.')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [adminToken, toast])
+
+  const moderateVerification = async (userId, approved) => {
+    if (!adminToken || !userId) return
+    const key = String(userId)
+    setModeratingByUserId((prev) => ({ ...prev, [key]: true }))
+    try {
+      await adminSetAgentVerification(adminToken, key, approved)
+      setLivePending((prev) => prev.filter((row) => String(row.userId) !== key))
+      toast.success(
+        approved ? 'Agent approved' : 'Agent rejected',
+        approved ? 'Verification badge has been granted.' : 'Verification request has been rejected.',
+      )
+    } catch (e) {
+      toast.error('Action failed', e?.message || 'Could not update verification status.')
+    } finally {
+      setModeratingByUserId((prev) => ({ ...prev, [key]: false }))
+    }
+  }
 
   const stats = useMemo(() => {
     const total = agents.length
@@ -306,6 +391,26 @@ export default function AdminAgentsPage() {
                       </td>
                       <td className="px-5 py-3.5 text-right md:px-6">
                         <div className="flex flex-wrap justify-end gap-1.5">
+                          {a.verify === 'Pending' && a.id ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => moderateVerification(a.id, true)}
+                                disabled={Boolean(moderatingByUserId[String(a.id)])}
+                                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moderateVerification(a.id, false)}
+                                disabled={Boolean(moderatingByUserId[String(a.id)])}
+                                className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => setViewAgent(a)}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { walletPayoutCreate } from '../../lib/api'
 
 const fmtN = (n) => `₦${Number(n || 0).toLocaleString('en-NG')}`
 
@@ -10,12 +12,22 @@ function parseAmountInput(raw) {
   return Number.isFinite(n) ? n : 0
 }
 
-export default function AgentRequestPayoutModal({ open, onClose, availableBalance, minPayout }) {
+export default function AgentRequestPayoutModal({ open, onClose, availableBalance, minPayout, onSuccess }) {
   const toast = useToast()
+  const { token } = useAuth()
   const [amountRaw, setAmountRaw] = useState('')
+  const [bankName, setBankName] = useState('')
+  const [accountName, setAccountName] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!open) setAmountRaw('')
+    if (!open) {
+      setAmountRaw('')
+      setBankName('')
+      setAccountName('')
+      setAccountNumber('')
+    }
   }, [open])
 
   useEffect(() => {
@@ -39,15 +51,33 @@ export default function AgentRequestPayoutModal({ open, onClose, availableBalanc
     setAmountRaw(String(availableBalance))
   }, [availableBalance])
 
-  const submit = useCallback(() => {
-    if (requested < minPayout || requested === 0) return
-    toast.success('Payout requested', `${fmtN(requested)} payout request submitted successfully.`)
-    onClose()
-  }, [requested, minPayout, onClose, toast])
+  const submit = useCallback(async () => {
+    if (requested < minPayout || requested === 0 || !token) return
+    if (!bankName.trim() || !accountName.trim() || !/^\d{10}$/.test(accountNumber.replace(/\D/g, ''))) {
+      toast.error('Bank details required', 'Enter bank name, account name, and a 10-digit account number.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await walletPayoutCreate(token, {
+        amountNgn: requested,
+        bankName: bankName.trim(),
+        accountName: accountName.trim(),
+        accountNumber: accountNumber.replace(/\D/g, '').slice(0, 10),
+      })
+      onSuccess?.()
+      toast.success('Payout requested', `${fmtN(requested)} submitted for staff approval.`)
+      onClose()
+    } catch (e) {
+      toast.error('Request failed', e?.message || 'Could not submit payout.')
+    } finally {
+      setSubmitting(false)
+    }
+  }, [requested, minPayout, token, bankName, accountName, accountNumber, onSuccess, onClose, toast])
 
   if (!open) return null
 
-  const canSubmit = requested >= minPayout && requested > 0
+  const canSubmit = requested >= minPayout && requested > 0 && Boolean(token)
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
@@ -85,7 +115,7 @@ export default function AgentRequestPayoutModal({ open, onClose, availableBalanc
               </svg>
             </span>
             <p className="min-w-0 text-[12px] leading-relaxed text-emerald-950/90">
-              You can request a payout any time your available balance is above the minimum payout amount.
+              Funds stay in your wallet until staff approves. Enter your settlement bank details below.
             </p>
           </div>
 
@@ -102,7 +132,7 @@ export default function AgentRequestPayoutModal({ open, onClose, availableBalanc
 
           <div className="mt-5">
             <p className="text-[14px] font-bold text-[#111827]">Payout Amount</p>
-            <p className="mt-0.5 text-[12px] text-slate-500">Enter the amount you want to withdraw.</p>
+            <p className="mt-0.5 text-[12px] text-slate-500">Enter the amount to withdraw from your wallet.</p>
             <div className="relative mt-3 flex rounded-xl border border-slate-200 bg-white shadow-sm ring-slate-200 transition focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-500/15">
               <span className="pointer-events-none flex items-center pl-4 text-[15px] font-semibold text-slate-400">₦</span>
               <input
@@ -131,75 +161,59 @@ export default function AgentRequestPayoutModal({ open, onClose, availableBalanc
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] sm:text-[13px]">
               <span className="font-medium text-slate-600">
-                You will receive: <span className="font-bold tabular-nums text-[#111827]">{fmtN(youReceive)}</span>
+                Net to bank (after fee): <span className="font-bold tabular-nums text-[#111827]">{fmtN(youReceive)}</span>
               </span>
               <span className="font-medium text-slate-500">
-                Service Charge (10%): <span className="font-semibold tabular-nums text-slate-700">{fmtN(serviceCharge)}</span>
+                Platform fee (10%): <span className="font-semibold tabular-nums text-slate-700">{fmtN(serviceCharge)}</span>
               </span>
             </div>
           </div>
 
-          <div className="mt-6">
-            <p className="text-[14px] font-bold text-[#111827]">Payout Method</p>
-            <p className="mt-0.5 text-[12px] text-slate-500">Choose how you want to receive your payout.</p>
-            <button
-              type="button"
-              className="mt-3 flex w-full items-center gap-3 rounded-xl border-2 border-indigo-200 bg-indigo-50/40 px-4 py-3.5 text-left shadow-sm transition hover:bg-indigo-50/80"
-            >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-600">
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
-                  <path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9Z" strokeLinejoin="round" />
-                  <path d="M3 10V7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3" />
-                  <path d="M7 15h2M11 15h6" strokeLinecap="round" />
-                </svg>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-bold text-[#111827]">GTBank</span>
-                <span className="mt-0.5 block text-[12px] font-medium text-slate-600">Account ending **** 1234</span>
-                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-100">
-                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Verified
-                </span>
-              </span>
-              <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m6 9 6 6 6-6" strokeLinecap="round" />
-              </svg>
-            </button>
-            <button type="button" className="mt-3 text-[13px] font-semibold text-indigo-600 transition hover:text-indigo-500">
-              <span className="mr-1 font-bold">+</span>
-              Add New Bank Account
-            </button>
+          <div className="mt-6 space-y-3">
+            <p className="text-[14px] font-bold text-[#111827]">Bank details</p>
+            <label className="block text-[12px] font-semibold text-slate-700">
+              Bank name
+              <input
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-[13px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+                placeholder="e.g. GTBank"
+              />
+            </label>
+            <label className="block text-[12px] font-semibold text-slate-700">
+              Account name
+              <input
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-[13px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+              />
+            </label>
+            <label className="block text-[12px] font-semibold text-slate-700">
+              Account number (10 digits)
+              <input
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                inputMode="numeric"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-[13px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+              />
+            </label>
           </div>
 
           <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
             <p className="text-[13px] font-bold text-[#111827]">Payout Summary</p>
             <div className="mt-3 space-y-2.5 text-[13px]">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-600">Requested Amount</span>
+                <span className="text-slate-600">Requested from wallet</span>
                 <span className="font-semibold tabular-nums text-slate-900">{fmtN(requested)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-600">Service Charge (10%)</span>
+                <span className="text-slate-600">Platform fee (10%)</span>
                 <span className="font-semibold tabular-nums text-slate-700">− {fmtN(serviceCharge)}</span>
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-slate-200/90 pt-2.5">
-                <span className="font-bold text-indigo-600">You Will Receive</span>
+                <span className="font-bold text-indigo-600">Estimated bank receipt</span>
                 <span className="text-lg font-bold tabular-nums text-indigo-600">{fmtN(youReceive)}</span>
               </div>
-            </div>
-            <div className="mt-4 flex gap-2.5 rounded-lg border border-indigo-100 bg-indigo-50/90 px-3 py-2.5">
-              <span className="mt-0.5 shrink-0 text-indigo-500">
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" strokeLinecap="round" />
-                </svg>
-              </span>
-              <p className="text-[11px] leading-relaxed text-indigo-950/90">
-                Payouts are processed within <span className="font-semibold">1–3 business days</span>. You will receive an email notification once your payout is
-                completed.
-              </p>
             </div>
           </div>
         </div>
@@ -214,11 +228,11 @@ export default function AgentRequestPayoutModal({ open, onClose, availableBalanc
           </button>
           <button
             type="button"
-            onClick={submit}
-            disabled={!canSubmit}
+            onClick={() => void submit()}
+            disabled={!canSubmit || submitting}
             className="inline-flex h-10 items-center justify-center rounded-xl bg-[#6366F1] px-5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            Request Payout
+            {submitting ? 'Submitting…' : 'Request Payout'}
           </button>
         </div>
       </div>

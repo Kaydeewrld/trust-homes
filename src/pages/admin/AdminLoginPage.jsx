@@ -29,15 +29,17 @@ export default function AdminLoginPage() {
 
   const onSubmit = (e) => {
     e.preventDefault()
-    setSubmitting(true)
-    const result = login(email, password)
-    setSubmitting(false)
-    if (!result.ok) {
-      toast.error('Sign in failed', result.error)
-      return
-    }
-    toast.success('Welcome back', 'You are signed in to the admin console.')
-    navigate('/admin/overview', { replace: true })
+    ;(async () => {
+      setSubmitting(true)
+      const result = await login(email, password)
+      setSubmitting(false)
+      if (!result.ok) {
+        toast.error('Sign in failed', result.error)
+        return
+      }
+      toast.success('Welcome back', 'You are signed in to the admin console.')
+      navigate('/admin/overview', { replace: true })
+    })()
   }
 
   return (

@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import CustomDropdown from '../components/CustomDropdown'
 import { loadListingDraft, saveListingDraft } from '../utils/listingDraftStorage'
+import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { listingsCreate } from '../lib/api'
 import {
   MONTH_OPTIONS,
   composeIsoDate,
@@ -10,7 +13,7 @@ import {
   parseIsoDateParts,
 } from '../utils/dateDropdownOptions'
 
-const ADD_LISTING_PROPERTY_TYPES = ['Apartment', 'House', 'Duplex', 'Penthouse', 'Office', 'Commercial']
+const ADD_LISTING_PROPERTY_TYPES = ['Apartment', 'House', 'Duplex', 'Penthouse', 'Hotel', 'Office', 'Commercial']
 const ADD_LISTING_STATES = ['Lagos', 'Ogun', 'Abuja']
 const ADD_LISTING_CITIES = ['Lekki', 'Ikoyi', 'Victoria Island']
 
@@ -79,16 +82,23 @@ function TipIcon({ kind }) {
 
 function AddListingPage() {
   const navigate = useNavigate()
+  const toast = useToast()
+  const { token } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [step, setStep] = useState(1)
   const [propertyType, setPropertyType] = useState('Apartment')
   const [listingKind, setListingKind] = useState('Rent')
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
+  const [latitude, setLatitude] = useState(null)
+  const [longitude, setLongitude] = useState(null)
+  const [locationSuggestions, setLocationSuggestions] = useState([])
   const [stateVal, setStateVal] = useState('Lagos')
   const [city, setCity] = useState('Lekki')
   const [area, setArea] = useState('')
   const [desc, setDesc] = useState('')
+  const [isDistressSale, setIsDistressSale] = useState(false)
+  const [isInvestmentProperty, setIsInvestmentProperty] = useState(false)
   const [beds, setBeds] = useState(4)
   const [baths, setBaths] = useState(3)
   const [sqm, setSqm] = useState(250)
@@ -108,12 +118,24 @@ function AddListingPage() {
     security: false,
     gym: false,
   })
+  const [mediaFiles, setMediaFiles] = useState([])
+  const [isPublishing, setIsPublishing] = useState(false)
+  const mediaInputRef = useRef(null)
+  const fileToDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = () => reject(new Error('Unable to read selected media file'))
+      reader.readAsDataURL(file)
+    })
+
 
   const titleLen = title.length
   const descLen = desc.length
+  const previewMedia = mediaFiles[0] || null
 
   const previewTitle = title.trim() || 'Your property title'
-  const previewBadge = listingKind === 'Rent' ? 'For Rent' : 'For Sale'
+  const previewBadge = listingKind === 'Rent' ? 'For Rent' : listingKind === 'Auction' ? 'Auction' : 'For Sale'
   const numericPrice = Number(String(price).replace(/\D/g, '')) || 0
   const initialPctNum = Math.min(90, Math.max(0, Number(payInitialPct) || 0))
   const durationNum = Math.max(1, Number(payDurationMonths) || 1)
@@ -142,13 +164,17 @@ function AddListingPage() {
     const d = loadListingDraft()
     if (d && typeof d === 'object') {
       if (typeof d.propertyType === 'string') setPropertyType(d.propertyType)
-      if (d.listingKind === 'Rent' || d.listingKind === 'Sale') setListingKind(d.listingKind)
+      if (d.listingKind === 'Rent' || d.listingKind === 'Sale' || d.listingKind === 'Auction') setListingKind(d.listingKind)
       if (typeof d.title === 'string') setTitle(d.title)
       if (typeof d.location === 'string') setLocation(d.location)
+      if (typeof d.latitude === 'number') setLatitude(d.latitude)
+      if (typeof d.longitude === 'number') setLongitude(d.longitude)
       if (typeof d.stateVal === 'string') setStateVal(d.stateVal)
       if (typeof d.city === 'string') setCity(d.city)
       if (typeof d.area === 'string') setArea(d.area)
       if (typeof d.desc === 'string') setDesc(d.desc)
+      if (typeof d.isDistressSale === 'boolean') setIsDistressSale(d.isDistressSale)
+      if (typeof d.isInvestmentProperty === 'boolean') setIsInvestmentProperty(d.isInvestmentProperty)
       if (typeof d.beds === 'number' && Number.isFinite(d.beds)) setBeds(d.beds)
       if (typeof d.baths === 'number' && Number.isFinite(d.baths)) setBaths(d.baths)
       if (typeof d.sqm === 'number' && Number.isFinite(d.sqm)) setSqm(d.sqm)
@@ -165,7 +191,7 @@ function AddListingPage() {
         setAvailD(p.d)
       }
       if (d.features && typeof d.features === 'object') {
-        setFeatures((prev) => ({
+        setFeatures(() => ({
           pool: Boolean(d.features.pool),
           parking: Boolean(d.features.parking),
           security: Boolean(d.features.security),
@@ -181,10 +207,14 @@ function AddListingPage() {
     listingKind,
     title,
     location,
+    latitude,
+    longitude,
     stateVal,
     city,
     area,
     desc,
+    isDistressSale,
+    isInvestmentProperty,
     beds,
     baths,
     sqm,
@@ -202,6 +232,137 @@ function AddListingPage() {
     const draft = buildListingDraft()
     saveListingDraft(draft)
     navigate('/add-listing/preview', { state: draft })
+  }
+
+  const handlePublishListing = async () => {
+    if (isPublishing) return
+    if (!token) {
+      toast.error('Sign in required', 'Please sign in before publishing a listing.')
+      navigate('/login')
+      return
+    }
+    const normalizedLocation = [location, area, city, stateVal].filter(Boolean).join(', ')
+    const payload = {
+      title: title.trim() || 'New Property Listing',
+      description: desc.trim() || 'Property listing submitted from user portal.',
+      location: normalizedLocation || 'Lagos, Nigeria',
+      latitude: latitude != null ? Number(latitude) : undefined,
+      longitude: longitude != null ? Number(longitude) : undefined,
+      priceNgn: Number(String(price).replace(/\D/g, '')) || 0,
+      purpose: listingKind === 'Rent' ? 'Rent' : listingKind === 'Auction' ? 'Auction' : 'Sale',
+      propertyType,
+      bedrooms: beds,
+      bathrooms: baths,
+      areaSqm: sqm,
+      media: mediaFiles
+        .map((m, index) => ({ url: m.uploadUrl, kind: m.type === 'video' ? 'video' : 'image', sortOrder: index }))
+        .filter((m) => Boolean(m.url)),
+      isDistressSale,
+      isInvestmentProperty,
+    }
+    if (payload.priceNgn <= 0) {
+      toast.error('Invalid price', 'Enter a valid listing price before publishing.')
+      return
+    }
+    try {
+      setIsPublishing(true)
+      const out = await listingsCreate(token, payload)
+      const status = out?.listing?.status || 'PENDING'
+      toast.success('Listing submitted', `Your listing is now ${status}.`)
+      navigate('/explore')
+    } catch (error) {
+      toast.error('Publish failed', error?.message || 'Unable to create listing right now.')
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  const openMediaPicker = () => {
+    mediaInputRef.current?.click()
+  }
+
+  const pickSuggestion = (s) => {
+    const text = [s.name, s.state, s.country].filter(Boolean).join(', ')
+    setLocation(text)
+    setLatitude(Number(s.lat))
+    setLongitude(Number(s.lon))
+    setLocationSuggestions([])
+  }
+
+  const searchLocationSuggestions = async (q) => {
+    const term = String(q || '').trim()
+    if (term.length < 3) {
+      setLocationSuggestions([])
+      return
+    }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(term)}`)
+      const json = await res.json()
+      const suggestions = Array.isArray(json)
+        ? json.map((item) => ({
+            name: item.display_name,
+            state: item.address?.state || '',
+            country: item.address?.country || '',
+            lat: Number(item.lat),
+            lon: Number(item.lon),
+          }))
+        : []
+      setLocationSuggestions(suggestions.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon)))
+    } catch {
+      setLocationSuggestions([])
+    }
+  }
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = Number(position.coords.latitude)
+        const lon = Number(position.coords.longitude)
+        setLatitude(lat)
+        setLongitude(lon)
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`)
+          const out = await res.json()
+          const name = String(out?.display_name || '').trim()
+          if (name) {
+            setLocation(name)
+          }
+        } catch {
+          setLocation('Current location')
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 15000 },
+    )
+  }
+
+  const handleMediaPick = async (event) => {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    const validFiles = files.filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))
+    const nextRaw = await Promise.all(
+      validFiles.map(async (file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        name: file.name,
+        type: file.type.startsWith('video/') ? 'video' : 'image',
+        previewUrl: URL.createObjectURL(file),
+        uploadUrl: await fileToDataUrl(file),
+      })),
+    )
+    const next = nextRaw.filter((item) => Boolean(item.uploadUrl))
+    setMediaFiles((current) => {
+      const merged = [...current, ...next]
+      const uniq = []
+      const seen = new Set()
+      for (const item of merged) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        uniq.push(item)
+      }
+      return uniq.slice(0, 20)
+    })
+    event.target.value = ''
   }
 
   return (
@@ -314,6 +475,15 @@ function AddListingPage() {
                       >
                         For Sale
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setListingKind('Auction')}
+                        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                          listingKind === 'Auction' ? 'bg-white text-violet-700 shadow-sm ring-1 ring-violet-200' : 'text-slate-600 hover:text-violet-700'
+                        }`}
+                      >
+                        Auction
+                      </button>
                     </div>
                   </div>
 
@@ -338,18 +508,38 @@ function AddListingPage() {
                     <div className="flex gap-2">
                       <input
                         value={location}
-                        onChange={(e) => setLocation(e.target.value)}
+                        onChange={(e) => {
+                          setLocation(e.target.value)
+                          void searchLocationSuggestions(e.target.value)
+                        }}
                         className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                         placeholder="Street, district, or landmark"
                       />
                       <button
                         type="button"
-                        onClick={() => setLocation('Current location · Lagos, Nigeria')}
+                        onClick={useCurrentLocation}
                         className="shrink-0 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
                       >
                         Use Current Location
                       </button>
                     </div>
+                    {locationSuggestions.length ? (
+                      <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-slate-200 bg-white p-1.5">
+                        {locationSuggestions.map((s) => (
+                          <button
+                            key={`${s.lat}-${s.lon}-${s.name}`}
+                            type="button"
+                            onClick={() => pickSuggestion(s)}
+                            className="block w-full rounded-lg px-2.5 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                          >
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {latitude != null && longitude != null ? (
+                      <p className="mt-1 text-[11px] text-slate-500">Coordinates captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}</p>
+                    ) : null}
                   </label>
 
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -386,6 +576,27 @@ function AddListingPage() {
                       placeholder="Highlight what makes this property special..."
                     />
                   </label>
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-medium text-slate-700">Category</p>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={isDistressSale}
+                        onChange={(e) => setIsDistressSale(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500/30"
+                      />
+                      Distress Sale
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={isInvestmentProperty}
+                        onChange={(e) => setIsInvestmentProperty(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500/30"
+                      />
+                      Investment Property
+                    </label>
+                  </div>
                 </div>
               </>
             )}
@@ -432,15 +643,37 @@ function AddListingPage() {
               <>
                 <h2 className="text-lg font-semibold text-slate-900">Photos & Videos</h2>
                 <p className="mt-0.5 text-sm text-slate-500">Upload clear photos — you can reorder before publishing.</p>
-                <div className="mt-6 flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-10 text-center transition hover:border-violet-400 hover:bg-violet-50">
+                <input
+                  ref={mediaInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleMediaPick}
+                />
+                <button
+                  type="button"
+                  onClick={openMediaPicker}
+                  className="mt-6 flex min-h-[200px] w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-10 text-center transition hover:border-violet-400 hover:bg-violet-50"
+                >
                   <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-100 text-violet-600">
                     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
                   </span>
                   <p className="mt-3 text-sm font-semibold text-slate-800">Drag & drop images here</p>
-                  <p className="mt-1 text-xs text-slate-500">or click to browse (JPG, PNG up to 10MB each)</p>
-                </div>
+                  <p className="mt-1 text-xs text-slate-500">or click to browse (images/videos)</p>
+                </button>
+                {mediaFiles.length > 0 && (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {mediaFiles.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                        <span className="truncate text-slate-700">{file.name}</span>
+                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] uppercase text-slate-600">{file.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -554,6 +787,8 @@ function AddListingPage() {
                   <div className="flex justify-between"><span className="text-slate-500">Property</span><span className="font-medium">{propertyType}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Location</span><span className="font-medium text-right">{location || `${area}, ${city}`}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Price</span><span className="font-medium">{price ? `₦${Number(price).toLocaleString('en-NG')}` : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Distress Sale</span><span className="font-medium">{isDistressSale ? 'Yes' : 'No'}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Investment Property</span><span className="font-medium">{isInvestmentProperty ? 'Yes' : 'No'}</span></div>
                   {paySmallSmallOpen ? (
                     <div className="flex justify-between gap-4">
                       <span className="text-slate-500">Pay Small Small</span>
@@ -565,8 +800,13 @@ function AddListingPage() {
                     </div>
                   ) : null}
                 </div>
-                <button type="button" className="mt-4 w-full rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white hover:bg-violet-500 sm:w-auto sm:px-8">
-                  Publish Listing
+                <button
+                  type="button"
+                  disabled={isPublishing}
+                  onClick={handlePublishListing}
+                  className="mt-4 w-full rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+                >
+                  {isPublishing ? 'Publishing...' : 'Publish Listing'}
                 </button>
               </>
             )}
@@ -594,11 +834,29 @@ function AddListingPage() {
               <p className="mt-0.5 text-xs text-slate-500">This is how your listing will appear to others.</p>
               <div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                 <div className="relative aspect-[4/3]">
-                  <img
-                    src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80"
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
+                  {previewMedia ? (
+                    previewMedia.type === 'video' ? (
+                      <div className="grid h-full w-full place-items-center bg-slate-100 text-center">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700">Video uploaded</p>
+                          <p className="mt-1 text-[11px] text-slate-500">{previewMedia.name}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={previewMedia.previewUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    )
+                  ) : (
+                    <div className="grid h-full w-full place-items-center bg-slate-100 text-center">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">No media uploaded yet</p>
+                        <p className="mt-1 text-[11px] text-slate-500">Upload photos or video in Step 3</p>
+                      </div>
+                    </div>
+                  )}
                   <span className="absolute left-2 top-2 rounded-md bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white">{previewBadge}</span>
                 </div>
                 <div className="space-y-2 p-3">

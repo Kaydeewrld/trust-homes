@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useId, useMemo, useState } from 'react'
+import { useWallet } from '../../context/WalletContext'
 import { earningsSummary, earningsTransactions, earningsYearlyNorm } from '../../data/agentEarningsSeed'
 import AgentRequestPayoutModal from './AgentRequestPayoutModal'
 import AgentPayoutHistoryModal from './AgentPayoutHistoryModal'
@@ -191,6 +192,7 @@ function StatusPill({ status }) {
 }
 
 export default function AgentEarningsPayoutsPage() {
+  const { balance, refreshWallet } = useWallet()
   const [payoutModalOpen, setPayoutModalOpen] = useState(false)
   const [payoutHistoryOpen, setPayoutHistoryOpen] = useState(false)
 
@@ -211,7 +213,7 @@ export default function AgentEarningsPayoutsPage() {
       },
       {
         label: 'Available Balance',
-        value: fmtN(earningsSummary.availableBalance),
+        value: fmtN(balance),
         trend: 'Ready for payout',
         trendClass: 'text-emerald-600',
         icon: (
@@ -249,7 +251,7 @@ export default function AgentEarningsPayoutsPage() {
         wrap: 'bg-orange-50 text-orange-500',
       },
     ],
-    [],
+    [balance],
   )
 
   return (
@@ -257,8 +259,9 @@ export default function AgentEarningsPayoutsPage() {
       <AgentRequestPayoutModal
         open={payoutModalOpen}
         onClose={() => setPayoutModalOpen(false)}
-        availableBalance={earningsSummary.availableBalance}
+        availableBalance={balance}
         minPayout={earningsSummary.payoutMin}
+        onSuccess={() => void refreshWallet()}
       />
       <AgentPayoutHistoryModal open={payoutHistoryOpen} onClose={() => setPayoutHistoryOpen(false)} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

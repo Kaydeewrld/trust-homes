@@ -76,6 +76,10 @@ CREATE TABLE IF NOT EXISTS "Listing" (
   "priceNgn" INTEGER NOT NULL,
   "purpose" TEXT NOT NULL,
   "propertyType" TEXT NOT NULL,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  "isDistressSale" BOOLEAN NOT NULL DEFAULT false,
+  "isInvestmentProperty" BOOLEAN NOT NULL DEFAULT false,
   "status" "ListingStatus" NOT NULL DEFAULT 'PENDING',
   "bedrooms" INTEGER,
   "bathrooms" INTEGER,
@@ -91,6 +95,7 @@ CREATE TABLE IF NOT EXISTS "ListingMedia" (
   "id" TEXT PRIMARY KEY,
   "listingId" TEXT NOT NULL REFERENCES "Listing"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   "url" TEXT NOT NULL,
+  "kind" TEXT NOT NULL DEFAULT 'image',
   "sortOrder" INTEGER NOT NULL DEFAULT 0,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -113,6 +118,39 @@ CREATE INDEX IF NOT EXISTS "Payment_userId_idx" ON "Payment" ("userId");
 CREATE INDEX IF NOT EXISTS "Payment_listingId_idx" ON "Payment" ("listingId");
 CREATE INDEX IF NOT EXISTS "Payment_status_idx" ON "Payment" ("status");
 
+CREATE TABLE IF NOT EXISTS "Conversation" (
+  "id" TEXT PRIMARY KEY,
+  "isSystem" BOOLEAN NOT NULL DEFAULT false,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "ConversationParticipant" (
+  "id" TEXT PRIMARY KEY,
+  "conversationId" TEXT NOT NULL REFERENCES "Conversation"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "userId" TEXT REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "participantKind" TEXT NOT NULL DEFAULT 'USER',
+  "displayName" TEXT NOT NULL,
+  "avatarUrl" TEXT,
+  "lastReadAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "ConversationParticipant_conversationId_idx" ON "ConversationParticipant" ("conversationId");
+CREATE INDEX IF NOT EXISTS "ConversationParticipant_userId_idx" ON "ConversationParticipant" ("userId");
+
+CREATE TABLE IF NOT EXISTS "Message" (
+  "id" TEXT PRIMARY KEY,
+  "conversationId" TEXT NOT NULL REFERENCES "Conversation"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "senderParticipantId" TEXT REFERENCES "ConversationParticipant"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+  "senderUserId" TEXT REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+  "kind" TEXT NOT NULL DEFAULT 'TEXT',
+  "body" TEXT,
+  "attachments" JSONB,
+  "listingPreview" JSONB,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "Message_conversationId_idx" ON "Message" ("conversationId");
+
 CREATE TABLE IF NOT EXISTS "OtpCode" (
   "id" TEXT PRIMARY KEY,
   "email" TEXT NOT NULL,
@@ -125,3 +163,26 @@ CREATE TABLE IF NOT EXISTS "OtpCode" (
 );
 CREATE INDEX IF NOT EXISTS "OtpCode_email_purpose_idx" ON "OtpCode" ("email", "purpose");
 CREATE INDEX IF NOT EXISTS "OtpCode_expiresAt_idx" ON "OtpCode" ("expiresAt");
+
+DO $$ BEGIN
+  CREATE TYPE "WalletPayoutStatus" AS ENUM ('PENDING', 'COMPLETED', 'REJECTED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS "WalletPayoutRequest" (
+  "id" TEXT PRIMARY KEY,
+  "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "amountNgn" INTEGER NOT NULL,
+  "feeNgn" INTEGER NOT NULL DEFAULT 0,
+  "netNgn" INTEGER NOT NULL,
+  "bankName" TEXT NOT NULL,
+  "accountName" TEXT NOT NULL,
+  "accountNumber" TEXT NOT NULL,
+  "status" "WalletPayoutStatus" NOT NULL DEFAULT 'PENDING',
+  "reviewedByStaffId" TEXT REFERENCES "StaffAdmin"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+  "reviewedAt" TIMESTAMP(3),
+  "reviewNote" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "WalletPayoutRequest_userId_idx" ON "WalletPayoutRequest" ("userId");
+CREATE INDEX IF NOT EXISTS "WalletPayoutRequest_status_idx" ON "WalletPayoutRequest" ("status");

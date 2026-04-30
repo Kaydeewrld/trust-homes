@@ -22,6 +22,11 @@ export default function PaymentsCallbackPage() {
     const r = searchParams.get('reference') || searchParams.get('trxref') || ''
     return String(r).trim()
   }, [searchParams])
+  const nextHref = useMemo(() => {
+    const raw = String(searchParams.get('next') || '').trim()
+    if (!raw) return ''
+    return raw.startsWith('/') ? raw : ''
+  }, [searchParams])
 
   const [phase, setPhase] = useState('loading')
   const [payment, setPayment] = useState(null)
@@ -61,7 +66,7 @@ export default function PaymentsCallbackPage() {
     runVerify()
   }, [bootstrapping, runVerify])
 
-  const continueHref = user?.role === 'AGENT' ? '/agent' : '/explore'
+  const continueHref = nextHref || (user?.role === 'AGENT' ? '/agent' : '/explore')
 
   return (
     <div className="flex min-h-svh flex-1 flex-col bg-gradient-to-b from-slate-50 via-indigo-50/40 to-white text-slate-900 antialiased">
@@ -137,7 +142,7 @@ export default function PaymentsCallbackPage() {
                 We need your TrustedHome session to verify this payment and refresh your wallet. Log in with the same account you used before checkout.
               </p>
               <Link
-                to={`/login?next=${encodeURIComponent(`/payments/callback?reference=${encodeURIComponent(reference)}`)}`}
+                to={`/login?next=${encodeURIComponent(`/payments/callback?reference=${encodeURIComponent(reference)}${nextHref ? `&next=${encodeURIComponent(nextHref)}` : ''}`)}`}
                 className="mt-8 inline-flex w-full items-center justify-center rounded-xl py-3.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95"
                 style={{ backgroundColor: BRAND }}
               >

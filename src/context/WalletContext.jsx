@@ -8,8 +8,8 @@ export const BID_PLACEMENT_FEE_NGN = 2000
 const WalletContext = createContext(null)
 
 function FundWalletModalHost() {
-  const { fundWalletOpen, closeFundWallet, addFunds, balance } = useWallet()
-  return <AgentFundWalletModal open={fundWalletOpen} onClose={closeFundWallet} balance={balance} onFunded={addFunds} />
+  const { fundWalletOpen, closeFundWallet, balance } = useWallet()
+  return <AgentFundWalletModal open={fundWalletOpen} onClose={closeFundWallet} balance={balance} />
 }
 
 export function WalletProvider({ children }) {
@@ -45,13 +45,6 @@ export function WalletProvider({ children }) {
     refreshWallet()
   }, [bootstrapping, token, refreshWallet])
 
-  const addFunds = useCallback((amountNgn) => {
-    const n = Math.floor(Number(amountNgn) || 0)
-    if (n <= 0) return
-    balanceRef.current += n
-    setBalance(balanceRef.current)
-  }, [])
-
   const deductBidFee = useCallback(() => {
     if (balanceRef.current < BID_PLACEMENT_FEE_NGN) return false
     balanceRef.current -= BID_PLACEMENT_FEE_NGN
@@ -63,13 +56,12 @@ export function WalletProvider({ children }) {
     () => ({
       balance,
       deductBidFee,
-      addFunds,
       refreshWallet,
       fundWalletOpen,
       openFundWallet,
       closeFundWallet,
     }),
-    [balance, deductBidFee, addFunds, refreshWallet, fundWalletOpen, openFundWallet, closeFundWallet],
+    [balance, deductBidFee, refreshWallet, fundWalletOpen, openFundWallet, closeFundWallet],
   )
 
   return (

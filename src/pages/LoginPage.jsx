@@ -263,7 +263,7 @@ export default function LoginPage() {
                   } else if (next) {
                     navigate(next)
                   } else {
-                    navigate(signInAs === 'Agent' ? '/agent' : '/explore')
+                    navigate(signInAs === 'Agent' ? '/agent' : '/')
                   }
                 } catch (err) {
                   toast.error('Sign in failed', err.message || 'Check your email, password, and role.')

@@ -1,11 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { authMe } from '../lib/api.js'
+import { authMe, authUpdateMe } from '../lib/api.js'
 
 const TOKEN_KEY = 'th_app_token'
 const STORAGE_KEY = 'th_auth_user'
-
-const defaultAvatar =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=128&q=72'
 
 const AuthContext = createContext(null)
 
@@ -16,7 +13,8 @@ function normalizeUser(u) {
     id: typeof u.id === 'string' ? u.id : undefined,
     email,
     displayName: typeof u.displayName === 'string' && u.displayName.trim() ? u.displayName.trim() : email.split('@')[0] || 'Member',
-    avatarUrl: typeof u.avatarUrl === 'string' && u.avatarUrl.trim() ? u.avatarUrl.trim() : defaultAvatar,
+    avatarUrl: typeof u.avatarUrl === 'string' && u.avatarUrl.trim() ? u.avatarUrl.trim() : '',
+    bio: typeof u.bio === 'string' ? u.bio : '',
     role: u.role === 'AGENT' ? 'AGENT' : 'USER',
     emailVerified: Boolean(u.emailVerified),
     phone: u.phone ?? null,
@@ -44,6 +42,17 @@ export function AuthProvider({ children }) {
       return
     }
     setToken(t)
+    // Keep last known session visible during refresh while revalidating token.
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const cached = normalizeUser(parsed)
+        if (cached) setUser(cached)
+      }
+    } catch {
+      // ignore malformed cache and continue with server check
+    }
     let cancelled = false
     ;(async () => {
       try {
@@ -54,12 +63,8 @@ export function AuthProvider({ children }) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(nu))
         }
       } catch {
-        if (!cancelled) {
-          localStorage.removeItem(TOKEN_KEY)
-          localStorage.removeItem(STORAGE_KEY)
-          setUser(null)
-          setToken(null)
-        }
+        // Do not hard-logout on transient API/network issues during reload.
+        // User can still explicitly logout; session is revalidated on next successful request.
       } finally {
         if (!cancelled) setBootstrapping(false)
       }
@@ -83,7 +88,7 @@ export function AuthProvider({ children }) {
     const email = (payload?.email || 'member@trustedhome.ng').trim()
     const displayName =
       (payload?.displayName && String(payload.displayName).trim()) || email.split('@')[0] || 'Member'
-    const avatarUrl = (payload?.avatarUrl && String(payload.avatarUrl).trim()) || defaultAvatar
+    const avatarUrl = (payload?.avatarUrl && String(payload.avatarUrl).trim()) || ''
     const next = { email, displayName, avatarUrl, role: 'USER', emailVerified: true }
     setUser(next)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
@@ -96,6 +101,20 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(TOKEN_KEY)
   }, [])
 
+  const updateProfile = useCallback(
+    async (payload) => {
+      if (!token) throw new Error('Not authenticated')
+      const out = await authUpdateMe(token, payload)
+      const nu = normalizeUser(out?.user)
+      if (nu) {
+        setUser(nu)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nu))
+      }
+      return out
+    },
+    [token],
+  )
+
   const value = useMemo(
     () => ({
       user,
@@ -104,9 +123,10 @@ export function AuthProvider({ children }) {
       applySession,
       login,
       logout,
+      updateProfile,
       isAuthenticated: Boolean(user),
     }),
-    [user, token, bootstrapping, applySession, login, logout],
+    [user, token, bootstrapping, applySession, login, logout, updateProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

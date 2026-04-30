@@ -14,7 +14,14 @@ function parseClientOrigins(raw) {
     .split(',')
     .map(normalizeOriginUrl)
     .filter(Boolean)
-  return list.length ? list : ['http://localhost:5173']
+  const defaults = ['http://localhost:5173']
+  const allowLocalDev = process.env.NODE_ENV !== 'production'
+  if (!list.length) {
+    return allowLocalDev ? [...defaults, 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'] : defaults
+  }
+  if (!allowLocalDev) return list
+  const devOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174']
+  return Array.from(new Set([...list, ...devOrigins]))
 }
 
 function required(name, { allowEmpty = false } = {}) {
@@ -64,8 +71,10 @@ export const config = {
   smtpPass: String(process.env.SMTP_PASS || '').replace(/\s+/g, ''),
   smtpSecure: process.env.SMTP_SECURE === '1' || process.env.SMTP_SECURE === 'true',
   mailFrom: (process.env.MAIL_FROM || '').trim(),
+  supportPhone: (process.env.SUPPORT_PHONE || '+234 800 000 0000').trim(),
   /** Comma-separated — receives payment success + transaction alerts (same SMTP). */
   opsNotifyEmails: parseOpsNotifyEmails(process.env.OPS_NOTIFY_EMAIL),
+  platformFeePct: Math.min(0.9, Math.max(0, Number(process.env.PLATFORM_FEE_PCT || 0.1))),
 }
 
 export function assertConfig() {

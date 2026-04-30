@@ -7,12 +7,13 @@ const links = [
   { to: '/', label: 'Home' },
   { to: '/explore', label: 'Explore' },
   { to: '/auctions', label: 'Auctions' },
+  { to: '/hotels', label: 'Hotels' },
   { to: '/saved', label: 'Saved' },
   { to: '/messages', label: 'Messages', badge: 3 },
 ]
 
 function SiteHeader() {
-  const { balance } = useWallet()
+  const { balance, openFundWallet } = useWallet()
   const { user } = useAuth()
   const [showWalletBalance, setShowWalletBalance] = useState(true)
   const location = useLocation()
@@ -65,6 +66,17 @@ function SiteHeader() {
               )}
             </button>
           </div>
+          <button
+            type="button"
+            onClick={openFundWallet}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              lightHeader
+                ? 'bg-blue-600 text-white hover:bg-blue-500'
+                : 'bg-white text-blue-700 hover:bg-blue-50'
+            }`}
+          >
+            Fund Wallet
+          </button>
 
           <nav className="flex flex-wrap items-center gap-1">
             {links.map((link) => (

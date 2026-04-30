@@ -1,8 +1,23 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
-import { getAgentListingById } from '../../data/agentListingsSeed'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { listingsGetById, listingsUpdate } from '../../lib/api'
+import { useAuth } from '../../context/AuthContext'
+import { useToast } from '../../context/ToastContext'
+
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&w=1000&q=80'
 
 const fmtPrice = (naira) => `₦${Number(naira).toLocaleString('en-NG')}`
+
+function uiPurposeFromApi(p) {
+  const s = String(p || '').toLowerCase()
+  if (s.includes('rent')) return 'For Rent'
+  return 'For Sale'
+}
+
+function apiPurposeFromUi(p) {
+  return p === 'For Rent' ? 'Rent' : 'Sale'
+}
 
 const formTabs = ['Basic Details', 'Description', 'Features', 'Media', 'Pricing & Commission', 'Location', 'Preview']
 
@@ -28,7 +43,12 @@ function SpecMini({ icon, label, value }) {
 export default function AgentEditListingPage() {
   const { listingId } = useParams()
   const navigate = useNavigate()
-  const base = useMemo(() => getAgentListingById(listingId || ''), [listingId])
+  const { token, user } = useAuth()
+  const toast = useToast()
+  const [apiListing, setApiListing] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const [activeTab, setActiveTab] = useState('Basic Details')
   const [title, setTitle] = useState('')
@@ -49,31 +69,122 @@ export default function AgentEditListingPage() {
   const [price, setPrice] = useState('')
 
   useEffect(() => {
-    if (!base) return
-    setTitle(base.title)
-    setPropertyType(base.propertyType || 'Duplex')
-    setPurpose(base.purpose || 'For Sale')
-    setBedrooms(String(base.bedrooms ?? 4))
-    setBathrooms(String(base.bathrooms ?? 5))
-    setLivingRooms(String(base.livingRooms ?? 2))
-    setParking(String(base.parkingSpaces ?? 2))
-    setFurnishing(base.furnishing || 'Fully Furnished')
-    setSqm(String(base.sqm ?? 350))
-    setYearBuilt(String(base.yearBuilt ?? 2022))
-    setTitleDoc(base.titleDoc || "Governor's Consent")
-    setListingStatus(base.status === 'active' ? 'Active' : base.status === 'pending' ? 'Pending Verification' : 'Active')
-    setCommissionPct(String(base.commissionPct ?? 3))
-    setPrice(String(base.price ?? ''))
-  }, [base])
+    if (!listingId) {
+      setLoading(false)
+      setLoadErr('Missing listing.')
+      return
+    }
+    let cancelled = false
+    setLoadErr('')
+    setLoading(true)
+    ;(async () => {
+      try {
+        const out = await listingsGetById(listingId)
+        if (cancelled) return
+        setApiListing(out.listing || null)
+      } catch (e) {
+        if (!cancelled) setLoadErr(e.message || 'Could not load listing.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [listingId])
 
-  const previewPrice = Number(price.replace(/\D/g, '')) || base?.price || 0
+  useEffect(() => {
+    if (!apiListing) return
+    setTitle(apiListing.title || '')
+    setPropertyType(apiListing.propertyType || 'Duplex')
+    setPurpose(uiPurposeFromApi(apiListing.purpose))
+    setBedrooms(String(apiListing.bedrooms ?? 4))
+    setBathrooms(String(apiListing.bathrooms ?? 5))
+    setLivingRooms(String(apiListing.livingRooms ?? 2))
+    setParking(String(apiListing.parkingSpaces ?? 2))
+    setFurnishing(apiListing.furnishing || 'Fully Furnished')
+    setSqm(String(apiListing.areaSqm ?? 350))
+    setYearBuilt(String(apiListing.yearBuilt ?? 2022))
+    setTitleDoc(apiListing.titleDoc || "Governor's Consent")
+    const st = String(apiListing.status || '').toUpperCase()
+    if (st === 'APPROVED') setListingStatus('Active')
+    else if (st === 'PENDING') setListingStatus('Pending Verification')
+    else if (st === 'SOLD') setListingStatus('Sold')
+    else if (st === 'REJECTED') setListingStatus('Rejected')
+    else if (st === 'DRAFT') setListingStatus('Draft')
+    else setListingStatus('Active')
+    setCommissionPct(String(apiListing.commissionPct ?? 3))
+    setPrice(String(apiListing.priceNgn ?? ''))
+  }, [apiListing])
+
+  const previewImage = apiListing?.previewMediaUrl || apiListing?.media?.[0]?.url || FALLBACK_IMAGE
+  const galleryUrls = useMemo(() => {
+    const m = apiListing?.media
+    if (Array.isArray(m) && m.length) return m.map((x) => String(x.url || '').trim()).filter(Boolean)
+    return [previewImage]
+  }, [apiListing, previewImage])
+
+  const previewPrice = Number(price.replace(/\D/g, '')) || Number(apiListing?.priceNgn) || 0
   const commissionNum = Number(commissionPct) || 0
   const potentialCommission = Math.round(previewPrice * (commissionNum / 100))
 
-  if (!base) {
+  const saveChanges = useCallback(async () => {
+    if (!token || !listingId || !apiListing) return
+    const priceNgn = Math.floor(Number(String(price).replace(/\D/g, '')) || 0)
+    if (!title.trim() || priceNgn <= 0) {
+      toast.error('Invalid listing', 'Title and a positive price are required.')
+      return
+    }
+    setSaving(true)
+    try {
+      await listingsUpdate(token, listingId, {
+        title: title.trim(),
+        description: String(apiListing.description || ''),
+        location: String(apiListing.location || ''),
+        priceNgn,
+        purpose: apiPurposeFromUi(purpose),
+        propertyType,
+        bedrooms: Math.floor(Number(bedrooms) || 0),
+        bathrooms: Math.floor(Number(bathrooms) || 0),
+        areaSqm: Math.floor(Number(String(sqm).replace(/\D/g, '')) || 0) || undefined,
+      })
+      toast.success('Listing updated', 'Your changes were saved.')
+      const out = await listingsGetById(listingId)
+      setApiListing(out.listing || null)
+    } catch (e) {
+      toast.error('Save failed', e.message || 'Could not update listing.')
+    } finally {
+      setSaving(false)
+    }
+  }, [
+    token,
+    listingId,
+    apiListing,
+    title,
+    price,
+    purpose,
+    propertyType,
+    bedrooms,
+    bathrooms,
+    sqm,
+    toast,
+  ])
+
+  const forbidden =
+    Boolean(apiListing && user?.id && String(apiListing.ownerId) !== String(user.id))
+
+  if (loading) {
     return (
       <div className="p-8 text-center">
-        <p className="text-slate-600">Listing not found.</p>
+        <p className="text-slate-600">Loading listing…</p>
+      </div>
+    )
+  }
+
+  if (loadErr || !apiListing) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-slate-600">{loadErr || 'Listing not found.'}</p>
         <Link to="/agent/listings" className="mt-4 inline-block font-semibold text-indigo-600">
           Back to My Listings
         </Link>
@@ -81,7 +192,19 @@ export default function AgentEditListingPage() {
     )
   }
 
-  const galleryThumbs = [base.image, base.image, base.image, base.image, base.image]
+  if (forbidden) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-slate-600">You can only edit your own listings.</p>
+        <Link to="/agent/listings" className="mt-4 inline-block font-semibold text-indigo-600">
+          Back to My Listings
+        </Link>
+      </div>
+    )
+  }
+
+  const galleryThumbs = galleryUrls.length ? galleryUrls : [previewImage]
+  const extraMediaCount = Math.max(0, (apiListing.media?.length || 0) - 4)
 
   return (
     <div className="flex w-full min-w-0 flex-col bg-[#F9FAFB]">
@@ -335,8 +458,13 @@ export default function AgentEditListingPage() {
               <button type="button" className="rounded-xl bg-indigo-100 px-4 py-2.5 text-[13px] font-semibold text-indigo-700 hover:bg-indigo-200/80">
                 Save as Draft
               </button>
-              <button type="button" className="rounded-xl bg-[#6366F1] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-indigo-600">
-                Save Changes
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void saveChanges()}
+                className="rounded-xl bg-[#6366F1] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -347,7 +475,7 @@ export default function AgentEditListingPage() {
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-[14px] font-bold text-[#111827]">Listing Preview</h2>
                 <Link
-                  to={`/property/${base.propertyRouteId}`}
+                  to={`/property/${listingId}`}
                   className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-indigo-600 hover:text-indigo-500"
                 >
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -359,8 +487,8 @@ export default function AgentEditListingPage() {
               </div>
 
               <div className="relative mt-3 overflow-hidden rounded-xl bg-slate-100">
-                <img src={base.image} alt="" className="aspect-[4/3] w-full object-cover" />
-                <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-bold text-emerald-700 shadow-sm">Active</span>
+                <img src={previewImage} alt="" className="aspect-[4/3] w-full object-cover" />
+                <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-bold text-emerald-700 shadow-sm">{listingStatus}</span>
                 <button type="button" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-slate-500 shadow-sm hover:text-rose-500" aria-label="Favorite">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.45A4 4 0 0 1 19 11c0 5.65-7 10-7 10Z" strokeLinejoin="round" />
@@ -373,18 +501,18 @@ export default function AgentEditListingPage() {
                   <img key={i} src={src} alt="" className="h-12 w-16 shrink-0 rounded-md object-cover ring-1 ring-slate-200" />
                 ))}
                 <div className="relative grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-200 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">
-                  <img src={base.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" />
-                  <span className="relative">+12</span>
+                  <img src={previewImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" />
+                  <span className="relative">{extraMediaCount > 0 ? `+${extraMediaCount}` : '+'}</span>
                 </div>
               </div>
 
-              <h3 className="mt-3 text-[15px] font-bold leading-snug text-[#111827]">{title || base.title}</h3>
+              <h3 className="mt-3 text-[15px] font-bold leading-snug text-[#111827]">{title || apiListing.title}</h3>
               <p className="mt-1 flex items-center gap-1 text-[12px] text-slate-500">
                 <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                {base.location}
+                {apiListing.location}
               </p>
               <p className="mt-2 text-xl font-bold tabular-nums text-[#111827]">{fmtPrice(previewPrice)}</p>
               <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">{purpose}</span>
@@ -452,13 +580,13 @@ export default function AgentEditListingPage() {
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
                 <span>
-                  ID: <span className="font-semibold text-slate-700">{base.id}</span>
+                  ID: <span className="font-semibold text-slate-700">{listingId}</span>
                 </span>
-                <span>Listed on {base.dateAdded}</span>
+                <span>Listed on {String(apiListing.createdAt || '').slice(0, 10) || '—'}</span>
               </div>
 
               <a
-                href={`https://trustedhome.ng/property/${base.propertyRouteId}`}
+                href={`${typeof window !== 'undefined' ? window.location.origin : ''}/property/${listingId}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-[13px] font-semibold text-slate-800 shadow-sm hover:bg-slate-50"

@@ -54,6 +54,13 @@ const forgotPasswordResetSchema = z.object({
   newPassword: strongPassword,
 })
 
+const updateMeSchema = z.object({
+  displayName: z.string().min(1).max(80).optional(),
+  phone: z.string().max(40).optional(),
+  avatarUrl: z.string().url().or(z.literal('')).optional(),
+  bio: z.string().max(500).optional(),
+})
+
 export async function register(req, res, next) {
   try {
     const body = registerSchema.parse(req.body)
@@ -156,6 +163,17 @@ export async function me(req, res, next) {
     const user = await authService.getMe(req.user.id)
     res.json({ ok: true, user })
   } catch (e) {
+    next(e)
+  }
+}
+
+export async function updateMe(req, res, next) {
+  try {
+    const body = updateMeSchema.parse(req.body || {})
+    const user = await authService.updateMe(req.user.id, body)
+    res.json({ ok: true, user })
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ ok: false, error: e.issues[0]?.message || 'Invalid body' })
     next(e)
   }
 }

@@ -9,11 +9,14 @@ import { openapiSpec } from './docs/openapi.js'
 
 export function createApp() {
   const app = express()
+  const isDev = process.env.NODE_ENV !== 'production'
+  const devOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i
   app.use(
     cors({
       origin(origin, cb) {
         if (!origin) return cb(null, true)
         if (config.clientOrigins.includes(origin)) return cb(null, true)
+        if (isDev && devOriginPattern.test(origin)) return cb(null, true)
         return cb(null, false)
       },
       credentials: true,
@@ -34,7 +37,8 @@ export function createApp() {
       paymentController.paystackWebhook(req, res, next)
     },
   )
-  app.use(express.json())
+  // Profile image updates can include base64 data URLs.
+  app.use(express.json({ limit: '8mb' }))
 
   app.get('/', (_req, res) => {
     res.json({

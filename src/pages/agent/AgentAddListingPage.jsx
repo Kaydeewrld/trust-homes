@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '../../context/ToastContext'
+import { useAuth } from '../../context/AuthContext'
+import { listingsCreate } from '../../lib/api'
 
 const fmtPrice = (naira) => {
   const n = Number(String(naira).replace(/\D/g, ''))
@@ -51,7 +54,7 @@ function PurposeToggle({ value, onChange }) {
     <div>
       <FieldLabel required>Purpose</FieldLabel>
       <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50/80 p-1 shadow-sm">
-        {['For Sale', 'For Rent'].map((p) => (
+        {['For Sale', 'For Rent', 'Auction'].map((p) => (
           <button
             key={p}
             type="button"
@@ -70,6 +73,8 @@ function PurposeToggle({ value, onChange }) {
 
 export default function AgentAddListingPage() {
   const navigate = useNavigate()
+  const toast = useToast()
+  const { token } = useAuth()
   const [step, setStep] = useState(0)
   const [title, setTitle] = useState('')
   const [propertyType, setPropertyType] = useState('')
@@ -89,15 +94,32 @@ export default function AgentAddListingPage() {
   const [payDurationMonths, setPayDurationMonths] = useState('12')
   const [payInitialPct, setPayInitialPct] = useState('20')
   const [location, setLocation] = useState('Lekki Phase 1, Lagos')
+  const [latitude, setLatitude] = useState(null)
+  const [longitude, setLongitude] = useState(null)
+  const [locationSuggestions, setLocationSuggestions] = useState([])
   const [description, setDescription] = useState(
     'A stunning modern home with premium finishes, generous living spaces, and excellent natural light—perfect for families seeking comfort and style.'
   )
+  const [isDistressSale, setIsDistressSale] = useState(false)
+  const [isInvestmentProperty, setIsInvestmentProperty] = useState(false)
+  const [mediaFiles, setMediaFiles] = useState([])
+  const [isPublishing, setIsPublishing] = useState(false)
+  const mediaInputRef = useRef(null)
   const [descExpanded, setDescExpanded] = useState(false)
+
+  const fileToDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = () => reject(new Error('Unable to read selected media file'))
+      reader.readAsDataURL(file)
+    })
 
   const titleLen = title.length
   const previewTitle = title.trim() || 'Luxury 4 Bedroom Duplex'
   const previewPrice = fmtPrice(price) || '₦120,000,000'
   const progressPct = ((step + 1) / STEPS.length) * 100
+  const previewMedia = mediaFiles[0] || null
   const numericPrice = Number(String(price).replace(/\D/g, '')) || 0
   const initialPctNum = Math.min(90, Math.max(0, Number(payInitialPct) || 0))
   const durationNum = Math.max(1, Number(payDurationMonths) || 1)
@@ -113,6 +135,122 @@ export default function AgentAddListingPage() {
 
   const goNext = () => setStep((s) => Math.min(STEPS.length - 1, s + 1))
   const goBack = () => setStep((s) => Math.max(0, s - 1))
+  const submitListing = async () => {
+    if (isPublishing) return
+    if (!token) {
+      toast.error('Sign in required', 'Please sign in again to publish your listing.')
+      navigate('/login')
+      return
+    }
+    const payload = {
+      title: previewTitle,
+      description: description.trim(),
+      location: location.trim(),
+      priceNgn: Number(String(price).replace(/\D/g, '')) || 0,
+      purpose: purpose === 'For Rent' ? 'Rent' : purpose === 'Auction' ? 'Auction' : 'Sale',
+      propertyType: propertyType || 'Residential',
+      bedrooms,
+      bathrooms,
+      areaSqm: Number(size) || undefined,
+      media: mediaFiles.length
+        ? mediaFiles.map((item) => ({ url: item.uploadUrl, kind: item.kind }))
+        : [{ url: DEFAULT_HERO, kind: 'image' }],
+      latitude: latitude != null ? Number(latitude) : undefined,
+      longitude: longitude != null ? Number(longitude) : undefined,
+      isDistressSale,
+      isInvestmentProperty,
+    }
+    if (payload.priceNgn <= 0) {
+      toast.error('Invalid price', 'Enter a valid property price before publishing.')
+      return
+    }
+    try {
+      setIsPublishing(true)
+      const out = await listingsCreate(token, payload)
+      const isApproved = out?.listing?.status === 'APPROVED'
+      toast.success(
+        'Listing created',
+        isApproved ? 'Your verified-agent listing is live.' : 'Listing submitted for moderation.',
+      )
+      navigate('/agent/listings')
+    } catch (error) {
+      toast.error('Publish failed', error?.message || 'Unable to create listing.')
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+  const openMediaPicker = () => mediaInputRef.current?.click()
+  const pickSuggestion = (s) => {
+    setLocation(s.name)
+    setLatitude(Number(s.lat))
+    setLongitude(Number(s.lon))
+    setLocationSuggestions([])
+  }
+  const searchLocationSuggestions = async (q) => {
+    const term = String(q || '').trim()
+    if (term.length < 3) {
+      setLocationSuggestions([])
+      return
+    }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(term)}`)
+      const json = await res.json()
+      const suggestions = Array.isArray(json)
+        ? json.map((item) => ({ name: item.display_name, lat: Number(item.lat), lon: Number(item.lon) }))
+        : []
+      setLocationSuggestions(suggestions.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon)))
+    } catch {
+      setLocationSuggestions([])
+    }
+  }
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = Number(position.coords.latitude)
+        const lon = Number(position.coords.longitude)
+        setLatitude(lat)
+        setLongitude(lon)
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`)
+          const out = await res.json()
+          const name = String(out?.display_name || '').trim()
+          setLocation(name || 'Current location')
+        } catch {
+          setLocation('Current location')
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 15000 },
+    )
+  }
+  const handleMediaPick = async (event) => {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    const validFiles = files.filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))
+    const nextRaw = await Promise.all(
+      validFiles.map(async (file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        name: file.name,
+        kind: file.type.startsWith('video/') ? 'video' : 'image',
+        previewUrl: URL.createObjectURL(file),
+        uploadUrl: await fileToDataUrl(file),
+      })),
+    )
+    const next = nextRaw.filter((item) => Boolean(item.uploadUrl))
+    setMediaFiles((current) => {
+      const merged = [...current, ...next]
+      const uniq = []
+      const seen = new Set()
+      for (const item of merged) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        uniq.push(item)
+      }
+      return uniq.slice(0, 20)
+    })
+    event.target.value = ''
+  }
 
   return (
     <div className="flex w-full min-w-0 flex-col bg-[#F9FAFB]">
@@ -215,7 +353,7 @@ export default function AgentAddListingPage() {
                           className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
                         >
                           <option value="">Select type</option>
-                          {['Duplex', 'Apartment', 'House', 'Penthouse', 'Townhouse', 'Commercial', 'Land'].map((o) => (
+                          {['Duplex', 'Apartment', 'House', 'Penthouse', 'Hotel', 'Townhouse', 'Commercial', 'Land'].map((o) => (
                             <option key={o} value={o}>
                               {o}
                             </option>
@@ -228,6 +366,19 @@ export default function AgentAddListingPage() {
                       <NumberStepper label="Bedrooms" value={bedrooms} min={0} max={20} onChange={setBedrooms} />
                       <NumberStepper label="Bathrooms" value={bathrooms} min={0} max={20} onChange={setBathrooms} />
                       <NumberStepper label="Parking Spaces" value={parking} min={0} max={10} onChange={setParking} />
+                      <div className="sm:col-span-2">
+                        <FieldLabel>Category</FieldLabel>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 text-[13px] font-medium text-slate-700">
+                            <input type="checkbox" checked={isDistressSale} onChange={(e) => setIsDistressSale(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30" />
+                            Distress Sale
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 text-[13px] font-medium text-slate-700">
+                            <input type="checkbox" checked={isInvestmentProperty} onChange={(e) => setIsInvestmentProperty(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30" />
+                            Investment Property
+                          </label>
+                        </div>
+                      </div>
                       <div className="sm:col-span-2">
                         <FieldLabel required>Property Size</FieldLabel>
                         <div className="flex gap-2">
@@ -355,7 +506,8 @@ export default function AgentAddListingPage() {
                 <section className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
                   <h2 className="text-[15px] font-bold text-[#111827]">Media</h2>
                   <p className="mt-2 text-[13px] text-slate-500">Upload photos and videos. Drag and drop or browse files.</p>
-                  <div className="mt-6 flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 transition hover:border-indigo-300 hover:bg-indigo-50/30">
+                  <input ref={mediaInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaPick} />
+                  <button type="button" onClick={openMediaPicker} className="mt-6 flex min-h-[180px] w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 transition hover:border-indigo-300 hover:bg-indigo-50/30">
                     <span className="grid h-12 w-12 place-items-center rounded-full bg-indigo-100 text-indigo-600">
                       <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
@@ -363,7 +515,17 @@ export default function AgentAddListingPage() {
                     </span>
                     <p className="mt-3 text-[13px] font-semibold text-slate-700">Drop files here or click to upload</p>
                     <p className="mt-1 text-[12px] text-slate-500">PNG, JPG up to 20MB each</p>
-                  </div>
+                  </button>
+                  {mediaFiles.length ? (
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      {mediaFiles.map((file) => (
+                        <div key={file.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                          <span className="truncate text-slate-700">{file.name}</span>
+                          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] uppercase text-slate-600">{file.kind}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </section>
               )}
 
@@ -455,12 +617,32 @@ export default function AgentAddListingPage() {
                   <p className="mt-1 text-[13px] text-slate-500">Where is the property located?</p>
                   <div className="mt-5">
                     <FieldLabel required>Address / Area</FieldLabel>
-                    <input
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[13px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
-                      placeholder="e.g. Lekki Phase 1, Lagos"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        value={location}
+                        onChange={(e) => {
+                          setLocation(e.target.value)
+                          void searchLocationSuggestions(e.target.value)
+                        }}
+                        className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-[13px] outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15"
+                        placeholder="e.g. Lekki Phase 1, Lagos"
+                      />
+                      <button type="button" onClick={useCurrentLocation} className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 text-[12px] font-semibold text-indigo-700 hover:bg-indigo-100">
+                        Use current
+                      </button>
+                    </div>
+                    {locationSuggestions.length ? (
+                      <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-slate-200 bg-white p-1.5">
+                        {locationSuggestions.map((s) => (
+                          <button key={`${s.lat}-${s.lon}-${s.name}`} type="button" onClick={() => pickSuggestion(s)} className="block w-full rounded-lg px-2.5 py-2 text-left text-[12px] text-slate-700 hover:bg-slate-50">
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {latitude != null && longitude != null ? (
+                      <p className="mt-1 text-[11px] text-slate-500">Coordinates: {latitude.toFixed(6)}, {longitude.toFixed(6)}</p>
+                    ) : null}
                   </div>
                 </section>
               )}
@@ -478,6 +660,8 @@ export default function AgentAddListingPage() {
                       </li>
                       <li>{location}</li>
                       <li>{previewPrice}</li>
+                      <li>Distress Sale: {isDistressSale ? 'Yes' : 'No'}</li>
+                      <li>Investment Property: {isInvestmentProperty ? 'Yes' : 'No'}</li>
                     </ul>
                   </div>
                 </section>
@@ -492,7 +676,25 @@ export default function AgentAddListingPage() {
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">Buyer view</span>
                 </div>
                 <div className="relative mt-3 overflow-hidden rounded-xl bg-slate-100">
-                  <img src={DEFAULT_HERO} alt="" className="aspect-[4/3] w-full object-cover" />
+                  {previewMedia ? (
+                    previewMedia.kind === 'video' ? (
+                      <div className="grid aspect-[4/3] w-full place-items-center bg-slate-100 text-center">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700">Video uploaded</p>
+                          <p className="mt-1 text-[11px] text-slate-500">{previewMedia.name}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <img src={previewMedia.previewUrl} alt="" className="aspect-[4/3] w-full object-cover" />
+                    )
+                  ) : (
+                    <div className="grid aspect-[4/3] w-full place-items-center bg-slate-100 text-center">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">No media uploaded yet</p>
+                        <p className="mt-1 text-[11px] text-slate-500">Upload photos or video in Media step</p>
+                      </div>
+                    </div>
+                  )}
                   <span
                     className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ${
                       purpose === 'For Rent' ? 'bg-sky-600' : 'bg-emerald-600'
@@ -602,10 +804,11 @@ export default function AgentAddListingPage() {
             ) : (
               <button
                 type="button"
-                onClick={() => navigate('/agent/listings')}
-                className="rounded-xl bg-[#6366F1] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition hover:bg-indigo-600"
+                disabled={isPublishing}
+                onClick={submitListing}
+                className="rounded-xl bg-[#6366F1] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Publish listing
+                {isPublishing ? 'Publishing...' : 'Publish listing'}
               </button>
             )}
           </div>

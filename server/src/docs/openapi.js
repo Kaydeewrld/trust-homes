@@ -71,7 +71,7 @@ const definition = {
         type: 'object',
         properties: {
           id: { type: 'string', example: 'lst_123' },
-          userId: { type: 'string', example: 'usr_abc123' },
+          ownerId: { type: 'string', example: 'usr_abc123' },
           title: { type: 'string', example: '3 Bedroom Apartment' },
           description: { type: 'string', nullable: true, example: 'Spacious apartment in Lekki.' },
           location: { type: 'string', example: 'Lekki, Lagos' },
@@ -82,6 +82,11 @@ const definition = {
           bathrooms: { type: 'integer', nullable: true, example: 3 },
           areaSqm: { type: 'integer', nullable: true, example: 145 },
           status: { type: 'string', example: 'PENDING' },
+          ownerRole: { type: 'string', enum: ['USER', 'AGENT'] },
+          ownerAgentVerified: { type: 'boolean' },
+          verificationBadge: { type: 'boolean' },
+          previewMediaUrl: { type: 'string', nullable: true },
+          mediaCount: { type: 'integer', example: 3 },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
@@ -183,6 +188,22 @@ const definition = {
           bedrooms: { type: 'integer' },
           bathrooms: { type: 'integer' },
           areaSqm: { type: 'integer' },
+          media: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string', format: 'uri' },
+                {
+                  type: 'object',
+                  properties: {
+                    url: { type: 'string', format: 'uri' },
+                    kind: { type: 'string', enum: ['image', 'video'] },
+                    sortOrder: { type: 'integer' },
+                  },
+                },
+              ],
+            },
+          },
         },
       },
       ListingPatchRequest: {
@@ -493,6 +514,62 @@ const definition = {
         },
       },
     },
+    '/api/listings/mine': {
+      get: {
+        tags: ['Listings'],
+        summary: 'List current user listings (all statuses)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'take', in: 'query', schema: { type: 'integer', default: 50 } },
+          { name: 'skip', in: 'query', schema: { type: 'integer', default: 0 } },
+          { name: 'status', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: {
+            description: 'Listings',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { ok: { type: 'boolean' }, listings: { type: 'array', items: { $ref: '#/components/schemas/Listing' } } } },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/admin/listings': {
+      get: {
+        tags: ['Listings'],
+        summary: 'Admin moderation queue',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'take', in: 'query', schema: { type: 'integer', default: 100 } },
+          { name: 'skip', in: 'query', schema: { type: 'integer', default: 0 } },
+          { name: 'status', in: 'query', schema: { type: 'string', default: 'PENDING' } },
+        ],
+        responses: { 200: { description: 'Moderation listings' } },
+      },
+    },
+    '/api/admin/listings/{id}/status': {
+      patch: {
+        tags: ['Listings'],
+        summary: 'Approve/reject/push back listing status',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status'],
+                properties: { status: { type: 'string', enum: ['APPROVED', 'REJECTED', 'PENDING'] } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Updated listing status' } },
+      },
+    },
     '/api/listings/{id}': {
       get: {
         tags: ['Listings'],
@@ -587,6 +664,77 @@ const definition = {
         responses: { 200: { description: 'Paystack checkout initialized' } },
       },
     },
+    '/api/wallet/payout': {
+      post: {
+        tags: ['Wallet'],
+        summary: 'Request bank payout (pending admin approval; wallet debited on approval)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['amountNgn', 'bankName', 'accountName', 'accountNumber'],
+                properties: {
+                  amountNgn: { type: 'integer', minimum: 1000 },
+                  bankName: { type: 'string' },
+                  accountName: { type: 'string' },
+                  accountNumber: { type: 'string', pattern: '^\\d{10}$' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Payout request created' } },
+      },
+    },
+    '/api/wallet/payouts': {
+      get: {
+        tags: ['Wallet'],
+        summary: 'Current user wallet payout requests',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'take', in: 'query', schema: { type: 'integer', default: 50 } }],
+        responses: { 200: { description: 'List' } },
+      },
+    },
+    '/api/admin/wallet-payouts': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Wallet withdrawal queue (staff)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['PENDING', 'COMPLETED', 'REJECTED'] } },
+          { name: 'take', in: 'query', schema: { type: 'integer' } },
+          { name: 'skip', in: 'query', schema: { type: 'integer' } },
+        ],
+        responses: { 200: { description: 'List' } },
+      },
+    },
+    '/api/admin/wallet-payouts/{id}': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Approve (debits wallet) or reject wallet payout',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['decision'],
+                properties: {
+                  decision: { type: 'string', enum: ['approve', 'reject'] },
+                  note: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Updated payout' } },
+      },
+    },
     '/api/payments/listing/init': {
       post: {
         tags: ['Payments'],
@@ -608,7 +756,7 @@ const definition = {
     '/api/payments/initialize': {
       post: {
         tags: ['Payments'],
-        summary: 'Initialize wallet top-up (legacy path)',
+        summary: 'Legacy alias for wallet top-up — prefer POST /api/wallet/fund',
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,

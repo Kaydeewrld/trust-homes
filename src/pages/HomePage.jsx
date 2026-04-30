@@ -1,10 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { properties } from '../data/properties'
-import { useEffect, useRef, useState } from 'react'
+import { properties as demoProperties } from '../data/properties'
+import { useEffect, useState } from 'react'
 import CustomDropdown from '../components/CustomDropdown'
 import PropertyMarketingSections from '../components/PropertyMarketingSections'
 import { useAuth } from '../context/AuthContext'
 import { useWallet } from '../context/WalletContext'
+import { useToast } from '../context/ToastContext'
+import { listingsList, walletFund, walletPayoutCreate } from '../lib/api'
+import { mapApiListingToProperty } from '../utils/listingAdapters'
 
 function HomePageIcon({ type, className = 'h-5 w-5' }) {
   const common = { className, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }
@@ -73,6 +76,7 @@ const headerNavLinks = [
   { to: '/', label: 'Home', end: true },
   { to: '/explore', label: 'Explore' },
   { to: '/auctions', label: 'Auctions' },
+  { to: '/hotels', label: 'Hotels' },
   { to: '/saved', label: 'Saved' },
   { to: '/messages', label: 'Messages', badge: 3 },
   { to: '/profile', label: 'Profile' },
@@ -80,18 +84,72 @@ const headerNavLinks = [
 
 function HomePage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const { balance } = useWallet()
+  const toast = useToast()
+  const { user, token } = useAuth()
+  const { balance, refreshWallet } = useWallet()
   const [showWalletBalance, setShowWalletBalance] = useState(true)
+  const [walletModalOpen, setWalletModalOpen] = useState(false)
+  const [walletModalTab, setWalletModalTab] = useState('fund')
+  const [walletFundAmount, setWalletFundAmount] = useState('')
+  const [payoutAmount, setPayoutAmount] = useState('')
+  const [payoutBankName, setPayoutBankName] = useState('')
+  const [payoutAccountName, setPayoutAccountName] = useState('')
+  const [payoutAccountNumber, setPayoutAccountNumber] = useState('')
+  const [walletSubmitting, setWalletSubmitting] = useState(false)
+  const [payoutSubmitting, setPayoutSubmitting] = useState(false)
   const [listingType, setListingType] = useState('Rent')
   const [propertyType, setPropertyType] = useState('House')
   const [roomCount, setRoomCount] = useState('2 Rooms')
   const [minPrice, setMinPrice] = useState(4500000)
   const [maxPrice, setMaxPrice] = useState(12000000)
   const [priceDisplayCurrency, setPriceDisplayCurrency] = useState('NGN (₦)')
+  const [remoteProperties, setRemoteProperties] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const out = await listingsList({ take: 40, skip: 0 })
+        const incoming = Array.isArray(out?.listings) ? out.listings.map((item, idx) => mapApiListingToProperty(item, idx)) : []
+        if (!cancelled) setRemoteProperties(incoming)
+      } catch {
+        if (!cancelled) setRemoteProperties([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const properties = [...remoteProperties, ...demoProperties].filter(
+    (item, idx, arr) => arr.findIndex((x) => x.id === item.id) === idx,
+  )
+  const adFeatured = demoProperties.filter((property) => property.isFeatured).slice(0, 4)
   const featured = properties.filter((property) => property.isFeatured).slice(0, 4)
   const nearby = properties.filter((property) => property.isNearby).slice(0, 4)
-  const heroImage = featured[0]?.image?.replace('w=1000', 'w=2200')
+  const recentlyAdded = [...properties]
+    .sort((a, b) => {
+      const at = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+      const bt = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+      if (at !== bt) return bt - at
+      if (a?.isNew !== b?.isNew) return a?.isNew ? -1 : 1
+      return 0
+    })
+    .slice(0, 4)
+  const distressSale = properties
+    .filter((property) => property.isDistressSale || property.purpose === 'Sale')
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 4)
+  const investmentProperties = properties
+    .filter((property) => property.isInvestmentProperty || (property.isRecommended && (property.purpose === 'Sale' || property.purpose === 'Lease')))
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 4)
+  const bestPricing = [...properties]
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 4)
+  const handpickedByTrustedHome = properties
+    .filter((property) => property.isFeatured || property.isRecommended)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 4)
+  const heroImage = (adFeatured[0]?.image || featured[0]?.image)?.replace('w=1000', 'w=2200')
   const categories = [
     { label: 'Apartments', count: '12,456 properties', icon: 'building' },
     { label: 'Houses', count: '8,920 properties', icon: 'home' },
@@ -106,6 +164,36 @@ function HomePage() {
     { name: 'Ajah', count: '3,120 properties', image: 'https://images.unsplash.com/photo-1460317442991-0ec209397118?auto=format&fit=crop&w=900&q=80' },
     { name: 'Yaba', count: '2,450 properties', image: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=900&q=80' },
     { name: 'Surulere', count: '1,850 properties', image: 'https://images.unsplash.com/photo-1444723121867-7a241cacace9?auto=format&fit=crop&w=900&q=80' },
+  ]
+  const hotels = [
+    {
+      name: 'Eko Signature Hotel',
+      location: 'Victoria Island, Lagos',
+      stateAirport: 'Murtala Muhammed Airport (LOS)',
+      airportDistanceKm: 27,
+      image: 'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      name: 'Lekki Grand Suites',
+      location: 'Lekki Phase 1, Lagos',
+      stateAirport: 'Murtala Muhammed Airport (LOS)',
+      airportDistanceKm: 34,
+      image: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      name: 'Abuja City View Hotel',
+      location: 'Wuse 2, Abuja',
+      stateAirport: 'Nnamdi Azikiwe Airport (ABV)',
+      airportDistanceKm: 38,
+      image: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      name: 'Port Harcourt Marina Hotel',
+      location: 'GRA Phase 2, Port Harcourt',
+      stateAirport: 'Port Harcourt Airport (PHC)',
+      airportDistanceKm: 30,
+      image: 'https://images.unsplash.com/photo-1455587734955-081b22074882?auto=format&fit=crop&w=900&q=80',
+    },
   ]
   const trustItems = [
     { title: 'Verified Listings', text: 'Every property is verified for your safety and peace of mind.', icon: 'shield' },
@@ -137,6 +225,105 @@ function HomePage() {
   const maxBound = 30000000
   const formatNaira = (amount) => `₦ ${new Intl.NumberFormat('en-NG').format(amount)}`
   const walletDisplay = `₦${new Intl.NumberFormat('en-NG').format(balance)}`
+  const parsedFundAmount = Number(String(walletFundAmount || '').replace(/\D/g, ''))
+  const parsedPayoutAmount = Number(String(payoutAmount || '').replace(/\D/g, ''))
+  const openWalletModal = (tab = 'fund') => {
+    if (!token) {
+      toast.error('Login required', 'Please log in to fund wallet or request payout.')
+      navigate('/login')
+      return
+    }
+    setWalletModalTab(tab)
+    setWalletModalOpen(true)
+  }
+  const closeWalletModal = () => {
+    setWalletModalOpen(false)
+    setWalletSubmitting(false)
+    setPayoutSubmitting(false)
+  }
+  const submitFundWallet = async () => {
+    if (!token) {
+      navigate('/login')
+      return
+    }
+    if (!Number.isFinite(parsedFundAmount) || parsedFundAmount < 1000) {
+      toast.error('Invalid amount', 'Minimum wallet funding amount is ₦1,000.')
+      return
+    }
+    setWalletSubmitting(true)
+    try {
+      const callbackUrl = `${window.location.origin}/payments/callback`
+      const out = await walletFund(token, { amountNgn: Math.floor(parsedFundAmount), callbackUrl })
+      if (!out?.authorization_url) {
+        toast.error('Funding failed', 'No checkout URL returned. Please try again.')
+        return
+      }
+      window.location.assign(out.authorization_url)
+    } catch (err) {
+      toast.error('Funding failed', err?.message || 'Unable to start wallet checkout.')
+    } finally {
+      setWalletSubmitting(false)
+    }
+  }
+  const submitPayoutRequest = async () => {
+    if (!token) {
+      navigate('/login')
+      return
+    }
+    if (!Number.isFinite(parsedPayoutAmount) || parsedPayoutAmount < 1000) {
+      toast.error('Invalid payout amount', 'Minimum payout request is ₦1,000.')
+      return
+    }
+    if (parsedPayoutAmount > balance) {
+      toast.error('Insufficient balance', 'Requested payout exceeds available wallet balance (pending payouts count toward commitments).')
+      return
+    }
+    if (!payoutBankName.trim() || !payoutAccountName.trim() || !/^\d{10}$/.test(payoutAccountNumber.trim())) {
+      toast.error('Incomplete bank details', 'Enter bank name, account name, and a valid 10-digit account number.')
+      return
+    }
+    setPayoutSubmitting(true)
+    try {
+      await walletPayoutCreate(token, {
+        amountNgn: Math.floor(parsedPayoutAmount),
+        bankName: payoutBankName.trim(),
+        accountName: payoutAccountName.trim(),
+        accountNumber: payoutAccountNumber.replace(/\D/g, '').slice(0, 10),
+      })
+      await refreshWallet()
+      toast.success(
+        'Payout request submitted',
+        `Your request of ₦${parsedPayoutAmount.toLocaleString('en-NG')} is pending staff approval.`,
+      )
+      closeWalletModal()
+    } catch (err) {
+      toast.error('Payout request failed', err?.message || 'Could not submit payout.')
+    } finally {
+      setPayoutSubmitting(false)
+    }
+  }
+  const verifiedBadge = (item) =>
+    item?.isVerifiedListing ? (
+      <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+        Verified
+      </span>
+    ) : null
+  const listingStatusBadge = (item, extraClass = '') => {
+    const s = String(item?.listingStatus || '').toUpperCase()
+    if (s === 'SOLD') {
+      return (
+        <span
+          className={`pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 bg-rose-700/95 py-1 text-center text-[11px] font-extrabold tracking-[0.25em] text-white ${extraClass}`}
+        >
+          SOLD
+        </span>
+      )
+    }
+    if (s === 'APPROVED') {
+      return <span className={`absolute left-3 top-10 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white ${extraClass}`}>Available</span>
+    }
+    return null
+  }
 
   return (
     <section className="w-full space-y-0 pb-0">
@@ -192,6 +379,13 @@ function HomePage() {
                       <path d="m1 1 22 22" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openWalletModal('fund')}
+                  className="rounded-md bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-blue-500"
+                >
+                  Open
                 </button>
               </div>
 
@@ -371,9 +565,15 @@ function HomePage() {
               <article className="relative overflow-hidden rounded-2xl border border-blue-100/80 shadow-sm">
                 <img src={heroImage} alt="Featured property" className="h-full min-h-[250px] w-full object-cover lg:min-h-[270px]" />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/10 to-transparent" />
+                <button
+                  type="button"
+                  className="absolute right-3 top-3 rounded-full border border-white/45 bg-slate-900/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur"
+                >
+                  Ad
+                </button>
                 <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-white/40 bg-slate-900/55 px-3 py-2 text-xs text-white backdrop-blur">
-                  <p className="font-semibold">{featured[0]?.title || 'Ocean Crest Smart Villa'}</p>
-                  <p className="text-slate-200">{featured[0]?.location || 'Lekki Phase 1, Lagos'}</p>
+                  <p className="font-semibold">{adFeatured[0]?.title || 'Ocean Crest Smart Villa'}</p>
+                  <p className="text-slate-200">{adFeatured[0]?.location || 'Lekki Phase 1, Lagos'}</p>
                 </div>
               </article>
             </div>
@@ -470,18 +670,27 @@ function HomePage() {
         <div className="mt-3 space-y-3 rounded-2xl border border-blue-300/20 bg-[#163cae]/85 p-4 backdrop-blur">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-blue-100/95">Featured Listings</h3>
-            <button onClick={() => navigate('/explore')} className="text-xs text-blue-100/80 hover:text-white">
+            <button onClick={() => navigate('/sections/featured')} className="text-xs text-blue-100/80 hover:text-white">
               View all
             </button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {featured.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-xl border border-blue-200/20 bg-[#0f2f96]/85">
-                <img src={item.image} alt={item.title} className="h-32 w-full object-cover" />
+              <article
+                key={item.id}
+                onClick={() => navigate(`/property/${item.id}`)}
+                className="cursor-pointer overflow-hidden rounded-xl border border-blue-200/20 bg-[#0f2f96]/85"
+              >
+                <div className="relative">
+                  <img src={item.image} alt={item.title} className="h-32 w-full object-cover" />
+                  {verifiedBadge(item)}
+                  {listingStatusBadge(item)}
+                </div>
                 <div className="space-y-1 p-2.5 text-white">
                   <p className="text-[11px] text-blue-100/75">{item.location}</p>
                   <p className="truncate text-xs font-semibold">{item.title}</p>
                   <button
+                    type="button"
                     onClick={() => navigate(`/property/${item.id}`)}
                     className="mt-1 rounded-md border border-blue-200/25 bg-white/10 px-2 py-1 text-[11px] text-blue-100"
                   >
@@ -496,14 +705,22 @@ function HomePage() {
         <div className="mt-3 space-y-3 rounded-2xl border border-blue-300/20 bg-[#163cae]/85 p-4 backdrop-blur">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-blue-100/95">Nearby Listings</h3>
-            <button onClick={() => navigate('/explore')} className="text-xs text-blue-100/80 hover:text-white">
+            <button onClick={() => navigate('/sections/nearby')} className="text-xs text-blue-100/80 hover:text-white">
               View all
             </button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {nearby.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-xl border border-blue-200/20 bg-[#0f2f96]/85">
-                <img src={item.image} alt={item.title} className="h-28 w-full object-cover" />
+              <article
+                key={item.id}
+                onClick={() => navigate(`/property/${item.id}`)}
+                className="cursor-pointer overflow-hidden rounded-xl border border-blue-200/20 bg-[#0f2f96]/85"
+              >
+                <div className="relative">
+                  <img src={item.image} alt={item.title} className="h-28 w-full object-cover" />
+                  {verifiedBadge(item)}
+                  {listingStatusBadge(item)}
+                </div>
                 <div className="space-y-1 p-2.5 text-white">
                   <p className="truncate text-xs font-semibold">{item.title}</p>
                   <p className="text-[11px] text-blue-100/75">{item.location}</p>
@@ -523,7 +740,7 @@ function HomePage() {
             </div>
             <button
               type="button"
-              onClick={() => navigate('/explore')}
+              onClick={() => navigate('/sections/featured')}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-blue-600"
             >
               View all properties
@@ -531,8 +748,10 @@ function HomePage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
             {featured.map((item, index) => (
-              <article key={item.id} className="group relative overflow-hidden rounded-2xl">
+              <article key={item.id} onClick={() => navigate(`/property/${item.id}`)} className="group relative cursor-pointer overflow-hidden rounded-2xl">
                 <img src={item.image} alt={item.title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
+                {verifiedBadge(item)}
+                {listingStatusBadge(item)}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent" />
                 <div className="absolute left-3 top-3 rounded-full bg-blue-500/90 px-2 py-1 text-[11px] text-white">
                   {index === 0 ? 'For Rent' : index === 1 ? 'For Sale' : index === 2 ? 'Office Space' : 'Short Stay'}
@@ -577,10 +796,181 @@ function HomePage() {
         <section className="mt-10 space-y-4">
           <div className="flex items-center justify-between">
             <div>
+              <h3 className="text-2xl font-semibold text-slate-800">Recently Added Listings</h3>
+              <p className="text-sm text-slate-500">Fresh listings recently added to the platform</p>
+            </div>
+            <button type="button" onClick={() => navigate('/sections/recently-added')} className="text-sm text-blue-600">
+              View all recent
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
+            {recentlyAdded.map((item) => (
+              <article key={item.id} onClick={() => navigate(`/property/${item.id}`)} className="cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="relative">
+                  <img src={item.image} alt={item.title} className="h-40 w-full object-cover" />
+                  {verifiedBadge(item)}
+                  {listingStatusBadge(item)}
+                </div>
+                <div className="space-y-1.5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">New</span>
+                  </div>
+                  <p className="text-xs text-slate-500">{item.location}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-blue-700">N{item.price.toLocaleString()}</p>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/property/${item.id}`)}
+                      className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-slate-800">Best Pricing</h3>
+              <p className="text-sm text-slate-500">Value-first listings with competitive pricing</p>
+            </div>
+            <button type="button" onClick={() => navigate('/sections/best-pricing')} className="text-sm text-blue-600">
+              View all
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
+            {bestPricing.map((item) => (
+              <article key={item.id} onClick={() => navigate(`/property/${item.id}`)} className="cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="relative">
+                  <img src={item.image} alt={item.title} className="h-40 w-full object-cover" />
+                  {verifiedBadge(item)}
+                  {listingStatusBadge(item)}
+                </div>
+                <div className="space-y-1.5 p-3">
+                  <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
+                  <p className="text-xs text-slate-500">{item.location}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-blue-700">N{item.price.toLocaleString()}</p>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Best Price
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-slate-800">Handpicked by TrustedHome</h3>
+              <p className="text-sm text-slate-500">Curated homes selected by our property team</p>
+            </div>
+            <button type="button" onClick={() => navigate('/sections/handpicked')} className="text-sm text-blue-600">
+              Explore picks
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
+            {handpickedByTrustedHome.map((item) => (
+              <article key={item.id} onClick={() => navigate(`/property/${item.id}`)} className="group relative cursor-pointer overflow-hidden rounded-2xl">
+                <img src={item.image} alt={item.title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
+                {verifiedBadge(item)}
+                {listingStatusBadge(item)}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent" />
+                <div className="absolute left-3 top-3 rounded-full bg-blue-600/90 px-2 py-1 text-[11px] text-white">TrustedHome Pick</div>
+                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                  <p className="text-2xl font-semibold">N{item.price.toLocaleString()}</p>
+                  <p className="text-sm text-blue-100/90">{item.location}</p>
+                  <div className="mt-2 flex gap-3 text-xs text-blue-100/90">
+                    <span>{item.bedrooms || 0} Beds</span>
+                    <span>{item.bathrooms} Baths</span>
+                    <span>{item.area} m²</span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-slate-800">Distress Sale</h3>
+              <p className="text-sm text-slate-500">Best-value sale listings you can act on quickly</p>
+            </div>
+            <button type="button" onClick={() => navigate('/sections/distress-sale')} className="text-sm text-blue-600">
+              View all deals
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
+            {distressSale.map((item) => (
+              <article key={item.id} onClick={() => navigate(`/property/${item.id}`)} className="group relative cursor-pointer overflow-hidden rounded-2xl">
+                <img src={item.image} alt={item.title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
+                {verifiedBadge(item)}
+                {listingStatusBadge(item)}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent" />
+                <div className="absolute left-3 top-3 rounded-full bg-rose-500/90 px-2 py-1 text-[11px] text-white">Distress Sale</div>
+                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                  <p className="text-2xl font-semibold">N{item.price.toLocaleString()}</p>
+                  <p className="text-sm text-blue-100/90">{item.location}</p>
+                  <div className="mt-2 flex gap-3 text-xs text-blue-100/90">
+                    <span>{item.bedrooms || 0} Beds</span>
+                    <span>{item.bathrooms} Baths</span>
+                    <span>{item.area} m²</span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-slate-800">Investment Properties</h3>
+              <p className="text-sm text-slate-500">High-potential listings selected for strong returns</p>
+            </div>
+            <button type="button" onClick={() => navigate('/sections/investment')} className="text-sm text-blue-600">
+              Explore investments
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
+            {investmentProperties.map((item) => (
+              <article key={item.id} onClick={() => navigate(`/property/${item.id}`)} className="group relative cursor-pointer overflow-hidden rounded-2xl">
+                <img src={item.image} alt={item.title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
+                {verifiedBadge(item)}
+                {listingStatusBadge(item)}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent" />
+                <div className="absolute left-3 top-3 rounded-full bg-emerald-500/90 px-2 py-1 text-[11px] text-white">
+                  Investment Pick
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                  <p className="text-2xl font-semibold">N{item.price.toLocaleString()}</p>
+                  <p className="text-sm text-blue-100/90">{item.location}</p>
+                  <div className="mt-2 flex gap-3 text-xs text-blue-100/90">
+                    <span>{item.bedrooms || 0} Beds</span>
+                    <span>{item.bathrooms} Baths</span>
+                    <span>{item.area} m²</span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
               <h3 className="text-2xl font-semibold text-slate-800">Popular Locations</h3>
               <p className="text-sm text-slate-500">Discover properties in top locations</p>
             </div>
-            <button type="button" onClick={() => navigate('/explore')} className="text-sm text-blue-600">
+            <button type="button" onClick={() => navigate('/sections/popular-locations')} className="text-sm text-blue-600">
               View all locations
             </button>
           </div>
@@ -592,6 +982,34 @@ function HomePage() {
                 <div className="absolute bottom-2 left-3 text-white">
                   <p className="font-medium">{location.name}</p>
                   <p className="text-xs text-blue-100">{location.count}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-slate-800">Hotels</h3>
+              <p className="text-sm text-slate-500">Top hotels with airport distance and location details</p>
+            </div>
+            <button type="button" onClick={() => navigate('/hotels')} className="text-sm text-blue-600">
+              View all hotels
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
+            {hotels.map((hotel) => (
+              <article key={hotel.name} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <img src={hotel.image} alt={hotel.name} className="h-40 w-full object-cover" />
+                <div className="space-y-2 p-3">
+                  <p className="text-sm font-semibold text-slate-800">{hotel.name}</p>
+                  <p className="text-xs text-slate-500">{hotel.location}</p>
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-2">
+                    <p className="text-[11px] text-slate-600">Nearest State Airport</p>
+                    <p className="text-xs font-medium text-slate-800">{hotel.stateAirport}</p>
+                    <p className="mt-0.5 text-[11px] text-blue-700">{hotel.airportDistanceKm} km away</p>
+                  </div>
                 </div>
               </article>
             ))}
@@ -611,13 +1029,13 @@ function HomePage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => (window.location.href = 'tel:+2348093001123')}
+                  onClick={() => navigate('/agents')}
                   className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-900/30"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
                     <path d="M5 4h3l2 5-2 1.5a14 14 0 0 0 5.5 5.5L15 14l5 2v3a2 2 0 0 1-2 2h-1C10.4 21 3 13.6 3 7V6a2 2 0 0 1 2-2z" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Call Agent Now
+                  Talk to Agents
                 </button>
                 <button
                   type="button"
@@ -701,6 +1119,111 @@ function HomePage() {
 
       </div>
       </div>
+      {walletModalOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900">Wallet Actions</h3>
+              <button type="button" onClick={closeWalletModal} className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100">
+                ✕
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Balance: {walletDisplay}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setWalletModalTab('fund')}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold ${walletModalTab === 'fund' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}
+              >
+                Add Funds
+              </button>
+              <button
+                type="button"
+                onClick={() => setWalletModalTab('payout')}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold ${walletModalTab === 'payout' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}
+              >
+                Request Payout
+              </button>
+            </div>
+            {walletModalTab === 'fund' ? (
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Amount (NGN)
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={walletFundAmount}
+                    onChange={(e) => setWalletFundAmount(e.target.value)}
+                    placeholder="e.g. 50000"
+                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void submitFundWallet()}
+                  disabled={walletSubmitting}
+                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {walletSubmitting ? 'Starting checkout...' : 'Proceed to Paystack'}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Payout Amount (NGN)
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={payoutAmount}
+                    onChange={(e) => setPayoutAmount(e.target.value)}
+                    placeholder="e.g. 20000"
+                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Bank Name
+                  <input
+                    type="text"
+                    value={payoutBankName}
+                    onChange={(e) => setPayoutBankName(e.target.value)}
+                    placeholder="e.g. GTBank"
+                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Account Name
+                  <input
+                    type="text"
+                    value={payoutAccountName}
+                    onChange={(e) => setPayoutAccountName(e.target.value)}
+                    placeholder="e.g. John Doe"
+                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Account Number
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={payoutAccountNumber}
+                    onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="10-digit account number"
+                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={payoutSubmitting}
+                  onClick={() => void submitPayoutRequest()}
+                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {payoutSubmitting ? 'Submitting…' : 'Submit Payout Request'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

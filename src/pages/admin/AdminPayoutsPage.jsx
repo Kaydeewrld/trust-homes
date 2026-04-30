@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { adminPayouts as adminPayoutsSeed } from '../../data/adminSeed'
 import AdminModalShell from './AdminModalShell'
+import { useAdminAuth } from '../../context/AdminAuthContext'
+import { adminPendingPayouts, adminWalletPayoutModerate, adminWalletPayoutsList } from '../../lib/api'
 
 const PAGE_SIZE = 6
 
@@ -50,12 +52,123 @@ function isQueueStatus(s) {
 
 export default function AdminPayoutsPage() {
   const toast = useToast()
+  const { adminToken } = useAdminAuth()
+  const [walletQueueRows, setWalletQueueRows] = useState([])
+  const [liveRows, setLiveRows] = useState([])
   const [rows, setRows] = useState(() => adminPayoutsSeed.map((r) => ({ ...r })))
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [viewRow, setViewRow] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!adminToken) return
+    const fmtMoney = (n) => `₦${Number(n || 0).toLocaleString('en-NG')}`
+    ;(async () => {
+      const [listingRes, walletRes] = await Promise.allSettled([
+        adminPendingPayouts(adminToken, { take: 200 }),
+        adminWalletPayoutsList(adminToken, { status: 'PENDING', take: 200 }),
+      ])
+
+      if (listingRes.status === 'rejected') {
+        if (!cancelled) toast.error('Listing payouts queue', listingRes.reason?.message || 'Could not load.')
+      }
+      if (walletRes.status === 'rejected') {
+        if (!cancelled) toast.error('Wallet withdrawals', walletRes.reason?.message || 'Could not load wallet payout requests.')
+      }
+
+      const out = listingRes.status === 'fulfilled' ? listingRes.value : { payouts: [] }
+      const wpOut = walletRes.status === 'fulfilled' ? walletRes.value : { payouts: [] }
+
+      try {
+        const mapped = Array.isArray(out?.payouts)
+          ? out.payouts.map((p) => ({
+              id: String(p.id),
+              reference: String(p.reference || ''),
+              agent: String(p.agentName || 'Agent'),
+              agentEmail: String(p.agentEmail || ''),
+              agentId: String(p.agentUserId || ''),
+              requested: fmtMoney(p.grossAmountNgn),
+              netToAgent: fmtMoney(p.netAmountNgn),
+              feesDeducted: fmtMoney(p.platformFeeNgn),
+              wallet: '—',
+              bankName: 'Pending bank',
+              accountMasked: '****',
+              status: 'Pending',
+              requestedAt: p.createdAt ? new Date(p.createdAt).toLocaleString('en-NG') : '—',
+              history: String(p.listingTitle || 'Property payment'),
+              processedAt: '—',
+              paidAt: '—',
+              batchRef: '—',
+              approver: '—',
+              riskScore: 'Low',
+              flags: 'Auto-generated',
+              method: 'Bank transfer',
+              accountName: '—',
+              sortCode: '—',
+              notesInternal: `Listing ${p.listingId || '—'} payout pending platform settlement.`,
+            }))
+          : []
+        const wpMapped = Array.isArray(wpOut?.payouts)
+          ? wpOut.payouts.map((p) => ({
+              rowKind: 'wallet',
+              id: `wallet:${p.id}`,
+              walletPayoutId: p.id,
+              reference: `WP-${String(p.id).slice(0, 8)}`,
+              agent: String(p.agentName || 'User'),
+              agentEmail: String(p.agentEmail || ''),
+              agentId: String(p.userId || ''),
+              requested: fmtMoney(p.amountNgn),
+              netToAgent: fmtMoney(p.netNgn),
+              feesDeducted: fmtMoney(p.feeNgn),
+              wallet: 'Withdrawal',
+              bankName: String(p.bankName || ''),
+              accountMasked: p.accountNumber
+                ? `····${String(p.accountNumber).replace(/\D/g, '').slice(-4)}`
+                : '····',
+              status: 'Pending',
+              requestedAt: p.createdAt ? new Date(p.createdAt).toLocaleString('en-NG') : '—',
+              history: 'Wallet withdrawal',
+              processedAt: '—',
+              paidAt: '—',
+              batchRef: '—',
+              approver: '—',
+              riskScore: 'Low',
+              flags: 'Wallet',
+              method: 'Bank transfer',
+              accountName: String(p.accountName || ''),
+              sortCode: '—',
+              notesInternal: 'User-requested wallet payout; debits wallet when approved.',
+            }))
+          : []
+        if (!cancelled) {
+          setLiveRows(mapped)
+          setWalletQueueRows(wpMapped)
+        }
+      } catch (err) {
+        if (!cancelled) toast.error('Could not process payout data', err?.message || 'Unexpected error.')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [adminToken, toast, refreshTick])
+
+  useEffect(() => {
+    const merged = [...walletQueueRows, ...liveRows, ...adminPayoutsSeed.map((r) => ({ ...r }))]
+    const seen = new Set()
+    setRows(
+      merged.filter((row) => {
+        const key = String(row.id || row.reference || '')
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+      }),
+    )
+  }, [liveRows, walletQueueRows])
 
   const stats = useMemo(() => {
     const total = rows.length
@@ -113,11 +226,44 @@ export default function AdminPayoutsPage() {
     }
   }
 
-  const applyConfirm = () => {
+  const applyConfirm = async () => {
     if (!confirm) return
     const { type, row } = confirm
     const w = nowWat()
     const adminEmail = typeof localStorage !== 'undefined' ? localStorage.getItem('th_admin_email') || 'ops@trustedhome.com' : 'ops@trustedhome.com'
+
+    if (row.rowKind === 'wallet' && adminToken) {
+      try {
+        if (type === 'process') {
+          await adminWalletPayoutModerate(adminToken, row.walletPayoutId, { decision: 'approve' })
+          toast.success('Withdrawal approved', 'Wallet balance was debited for this request.')
+        } else if (type === 'hold' || type === 'fail') {
+          await adminWalletPayoutModerate(adminToken, row.walletPayoutId, {
+            decision: 'reject',
+            note: type === 'hold' ? 'Rejected — placed on hold' : 'Rejected',
+          })
+          toast.info('Withdrawal rejected', 'No debit was made; user keeps wallet balance.')
+        }
+        setRows((prev) =>
+          prev.map((x) =>
+            x.id === row.id
+              ? {
+                  ...x,
+                  status: type === 'process' ? 'Paid' : 'Failed',
+                  processedAt: x.processedAt === '—' ? w : x.processedAt,
+                  paidAt: type === 'process' ? w : '—',
+                  batchRef: type === 'process' ? 'wallet-debit' : x.batchRef,
+                  approver: adminEmail,
+                }
+              : x,
+          ),
+        )
+      } catch (err) {
+        toast.error('Could not update withdrawal', err?.message || 'Request failed.')
+      }
+      setConfirm(null)
+      return
+    }
 
     if (type === 'process') {
       const batch = nipRef()
@@ -203,11 +349,18 @@ export default function AdminPayoutsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Payouts</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Review agent withdrawal requests, confirm bank destinations, and mark NIP transfers as paid. Use <span className="font-semibold text-slate-700">Process</span> for items in
-            the queue; successful payouts appear below for audit (demo data).
+            Review <span className="font-semibold text-slate-700">user wallet withdrawal requests</span> (bank payout from wallet balance), listing settlement payouts, and demo seed rows.
+            Approve wallet withdrawals to debit the user wallet in one step.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setRefreshTick((t) => t + 1)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Refresh data
+          </button>
           <button
             type="button"
             onClick={() => setStatusFilter('queue')}
@@ -238,6 +391,62 @@ export default function AdminPayoutsPage() {
           In production, payouts should require finance role, two-person approval above a threshold, and immutable audit logs. Never expose full account numbers in the browser; use
           tokenized bank refs and server-side NIBSS initiation.
         </p>
+      </section>
+
+      <section className="rounded-xl border border-emerald-200/80 bg-emerald-50/35 px-5 py-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-semibold tracking-tight text-emerald-950">User wallet withdrawals (pending)</h2>
+            <p className="mt-1 max-w-3xl text-sm text-emerald-900/85">
+              These are payout requests from the <span className="font-medium">wallet balance</span> (home or agent “Request payout”). They also appear in the settlement table below with a
+              <span className="font-medium"> Withdrawal </span>
+              wallet label.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200/80">
+            {walletQueueRows.length} pending
+          </span>
+        </div>
+        {walletQueueRows.length === 0 ? (
+          <p className="mt-3 text-sm text-emerald-900/75">
+            No pending wallet payout requests. Submit one from the app while logged in (wallet modal or agent earnings), then click <span className="font-semibold">Refresh data</span>.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-emerald-100/90 bg-white">
+            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/90">
+                  <th className="px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500">Reference</th>
+                  <th className="px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500">User</th>
+                  <th className="px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500">Amount</th>
+                  <th className="px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500">Bank</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {walletQueueRows.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5 font-mono text-xs font-semibold text-slate-800">{r.reference}</td>
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-slate-900">{r.agent}</p>
+                      <p className="text-xs text-slate-500">{r.agentEmail}</p>
+                    </td>
+                    <td className="px-4 py-2.5 font-semibold tabular-nums text-slate-900">{r.requested}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600">
+                      <p className="font-medium">{r.bankName}</p>
+                      <p className="font-mono text-slate-500">{r.accountMasked}</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button type="button" onClick={() => openView(r)} className="rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50">
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm md:p-5">
@@ -356,7 +565,11 @@ export default function AdminPayoutsPage() {
                               <button type="button" onClick={() => setConfirm({ type: 'process', row: r })} className="rounded-md px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
                                 Process
                               </button>
-                              {r.status === 'Pending' ? (
+                              {r.rowKind === 'wallet' ? (
+                                <button type="button" onClick={() => setConfirm({ type: 'fail', row: r })} className="rounded-md px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">
+                                  Reject
+                                </button>
+                              ) : r.status === 'Pending' ? (
                                 <button type="button" onClick={() => setConfirm({ type: 'hold', row: r })} className="rounded-md px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-50">
                                   Hold
                                 </button>
@@ -471,9 +684,13 @@ export default function AdminPayoutsPage() {
             {viewRow.status === 'Pending' || viewRow.status === 'Processing' ? (
               <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                 <button type="button" onClick={() => setConfirm({ type: 'process', row: viewRow })} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
-                  Process payout
+                  {viewRow.rowKind === 'wallet' ? 'Approve & debit wallet' : 'Process payout'}
                 </button>
-                {viewRow.status === 'Pending' ? (
+                {viewRow.rowKind === 'wallet' ? (
+                  <button type="button" onClick={() => setConfirm({ type: 'fail', row: viewRow })} className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100">
+                    Reject withdrawal
+                  </button>
+                ) : viewRow.status === 'Pending' ? (
                   <button type="button" onClick={() => setConfirm({ type: 'hold', row: viewRow })} className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-900 hover:bg-violet-100">
                     Place on hold
                   </button>
@@ -513,7 +730,9 @@ export default function AdminPayoutsPage() {
           !confirm
             ? ''
             : confirm.type === 'process'
-              ? `${confirm.row.reference} — ${confirm.row.requested} will be marked Paid with a new NIP reference (demo).`
+              ? confirm.row.rowKind === 'wallet'
+                ? `${confirm.row.reference} — approving debits the user's wallet by ${confirm.row.requested} for settlement (staff completes bank transfer).`
+                : `${confirm.row.reference} — ${confirm.row.requested} will be marked Paid with a new NIP reference (demo).`
               : confirm.type === 'hold'
                 ? `${confirm.row.reference} will not be paid until released.`
                 : confirm.type === 'release'
@@ -527,7 +746,7 @@ export default function AdminPayoutsPage() {
             </button>
             <button
               type="button"
-              onClick={applyConfirm}
+              onClick={() => void applyConfirm()}
               className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
                 !confirm ? 'bg-slate-400' : confirm.type === 'hold' ? 'bg-violet-600 hover:bg-violet-500' : confirm.type === 'fail' ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'
               }`}

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { payoutHistoryRows } from '../../data/agentPayoutHistorySeed'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
+import { walletPayoutsMine } from '../../lib/api'
 
 const fmtN = (n) => `₦${Number(n).toLocaleString('en-NG')}`
 
@@ -26,6 +28,26 @@ function StatusBadge({ status }) {
   )
 }
 
+function mapWalletPayoutToRow(p) {
+  const d = p.createdAt ? new Date(p.createdAt) : new Date()
+  const reviewed = p.reviewedAt ? new Date(p.reviewedAt) : null
+  const st = p.status === 'COMPLETED' ? 'paid' : p.status === 'PENDING' ? 'processing' : 'failed'
+  const mask = p.accountMasked || '****'
+  const last4 = mask.replace(/\D/g, '').slice(-4) || '—'
+  return {
+    id: p.id,
+    dateLabel: d.toLocaleDateString('en-NG'),
+    timeLabel: d.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' }),
+    payoutId: String(p.id).slice(0, 8),
+    amount: p.amountNgn,
+    bankName: p.bankName,
+    accountLast4: last4,
+    status: st,
+    paidOnDate: p.status === 'COMPLETED' && reviewed ? reviewed.toLocaleDateString('en-NG') : null,
+    paidOnTime: p.status === 'COMPLETED' && reviewed ? reviewed.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' }) : null,
+  }
+}
+
 function BankIcon({ className }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -38,15 +60,36 @@ function BankIcon({ className }) {
 
 export default function AgentPayoutHistoryModal({ open, onClose }) {
   const toast = useToast()
+  const { token } = useAuth()
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [apiRows, setApiRows] = useState(null)
 
   useEffect(() => {
     if (!open) {
       setPage(1)
       setStatusFilter('all')
+      setApiRows(null)
     }
   }, [open])
+
+  useEffect(() => {
+    if (!open || !token) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const out = await walletPayoutsMine(token, { take: 80 })
+        if (cancelled) return
+        const rows = Array.isArray(out?.payouts) ? out.payouts.map(mapWalletPayoutToRow) : []
+        setApiRows(rows)
+      } catch {
+        if (!cancelled) setApiRows([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, token])
 
   useEffect(() => {
     if (!open) return
@@ -57,10 +100,12 @@ export default function AgentPayoutHistoryModal({ open, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  const sourceRows = token && apiRows != null ? apiRows : payoutHistoryRows
+
   const filtered = useMemo(() => {
-    if (statusFilter === 'all') return payoutHistoryRows
-    return payoutHistoryRows.filter((r) => r.status === statusFilter)
-  }, [statusFilter])
+    if (statusFilter === 'all') return sourceRows
+    return sourceRows.filter((r) => r.status === statusFilter)
+  }, [statusFilter, sourceRows])
 
   const totalFiltered = filtered.length
   const pageCount = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE))

@@ -1,4 +1,4 @@
-export const propertyTypes = ['All', 'House', 'Apartment', 'Office', 'Commercial']
+export const propertyTypes = ['All', 'House', 'Apartment', 'Hotel', 'Office', 'Commercial']
 export const listingPurposes = ['All', 'Sale', 'Rent', 'Lease']
 export const homePills = ['Rent', 'Sale', 'Lease', 'Office', 'Short Stay']
 

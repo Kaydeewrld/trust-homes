@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { properties } from '../data/properties'
 import { BID_PLACEMENT_FEE_NGN, useWallet } from '../context/WalletContext'
 
@@ -16,26 +15,123 @@ const auctionItems = [
   { id: 'a8', tag: 'UPCOMING', status: 'Upcoming', title: '2 Bedroom Luxury Apartment', location: 'Eko Atlantic, Lagos', currentBid: 35000000, nextBid: 0, beds: 2, baths: 2, area: 150, timerLabel: 'Starts in', timerSeconds: 11730 },
 ]
 
+const auctionMediaBank = {
+  a1: [{ type: 'image', src: properties[0]?.image }, { type: 'image', src: properties[3]?.image }, { type: 'video', src: 'https://www.w3schools.com/html/mov_bbb.mp4' }],
+  a2: [{ type: 'image', src: properties[1]?.image }, { type: 'image', src: properties[7]?.image }],
+  a3: [{ type: 'image', src: properties[2]?.image }, { type: 'image', src: properties[10]?.image }, { type: 'video', src: 'https://www.w3schools.com/html/movie.mp4' }],
+  a4: [{ type: 'image', src: properties[9]?.image }, { type: 'image', src: properties[5]?.image }],
+  a5: [{ type: 'image', src: properties[5]?.image }, { type: 'image', src: properties[8]?.image }, { type: 'video', src: 'https://www.w3schools.com/html/mov_bbb.mp4' }],
+  a6: [{ type: 'image', src: properties[4]?.image }, { type: 'image', src: properties[2]?.image }],
+  a7: [{ type: 'image', src: properties[0]?.image }, { type: 'image', src: properties[11]?.image }],
+  a8: [{ type: 'image', src: properties[11]?.image }, { type: 'image', src: properties[1]?.image }, { type: 'video', src: 'https://www.w3schools.com/html/movie.mp4' }],
+}
+
 function AuctionsPage() {
-  const navigate = useNavigate()
   const { balance, deductBidFee } = useWallet()
-  const startRef = useRef(Date.now())
+  const startRef = useRef(0)
+  const [timerNowMs, setTimerNowMs] = useState(0)
   const [filter, setFilter] = useState('All Auctions')
   const [auctionListings, setAuctionListings] = useState(auctionItems)
   const [notifiedAuctions, setNotifiedAuctions] = useState([])
   const [bidModalState, setBidModalState] = useState({ open: false, auctionId: null })
   const [bidAmount, setBidAmount] = useState('')
   const [bidError, setBidError] = useState('')
+  const [replayIndex, setReplayIndex] = useState(0)
+  const [replaySweepOffset, setReplaySweepOffset] = useState(-120)
+  const [mediaTick, setMediaTick] = useState(0)
+  const [latestAuctionReply, setLatestAuctionReply] = useState(() => {
+    const liveAuction = auctionItems.find((item) => item.status === 'Live Now') || auctionItems[0]
+    return liveAuction
+      ? {
+          auctionTitle: liveAuction.title,
+          amount: liveAuction.currentBid,
+          at: new Date(),
+        }
+      : null
+  })
+  const formatNaira = (amount) => `₦${new Intl.NumberFormat('en-NG').format(amount)}`
 
   const filteredAuctions = useMemo(() => {
     if (filter === 'All Auctions') return auctionListings
     if (filter === 'Closed') return []
     return auctionListings.filter((item) => item.status === filter)
   }, [auctionListings, filter])
+  const liveReplayFeed = useMemo(() => {
+    const endingSoon = auctionListings.find((item) => item.status === 'Ending Soon')
+    const upcoming = auctionListings.find((item) => item.status === 'Upcoming')
+    return [
+      latestAuctionReply
+        ? {
+            id: 'latest-reply',
+            label: 'LIVE REPLY',
+            tone: 'emerald',
+            text: `${latestAuctionReply.auctionTitle} got a fresh bid at ${formatNaira(latestAuctionReply.amount)}`,
+          }
+        : null,
+      endingSoon
+        ? {
+            id: 'just-sold',
+            label: 'JUST SOLD',
+            tone: 'amber',
+            text: `${endingSoon.title} just closed around ${formatNaira(endingSoon.currentBid)}`,
+          }
+        : null,
+      upcoming
+        ? {
+            id: 'next-wave',
+            label: 'NEXT WAVE',
+            tone: 'blue',
+            text: `${upcoming.title} opens soon - watchers are lining up`,
+          }
+        : null,
+    ].filter(Boolean)
+  }, [auctionListings, latestAuctionReply])
+  const activeReplay = liveReplayFeed[replayIndex % Math.max(1, liveReplayFeed.length)] || null
 
-  const formatNaira = (amount) => `₦${new Intl.NumberFormat('en-NG').format(amount)}`
+  useEffect(() => {
+    startRef.current = Date.now()
+    setTimerNowMs(Date.now())
+    const timer = setInterval(() => setTimerNowMs(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  useEffect(() => {
+    if (!liveReplayFeed.length) return
+    const timer = setInterval(() => {
+      setReplayIndex((current) => (current + 1) % liveReplayFeed.length)
+    }, 3200)
+    return () => clearInterval(timer)
+  }, [liveReplayFeed.length])
+  useEffect(() => {
+    const gradientTimer = setInterval(() => {
+      setReplaySweepOffset((current) => (current >= 120 ? -120 : current + 6))
+    }, 70)
+    return () => clearInterval(gradientTimer)
+  }, [])
+  useEffect(() => {
+    const rotateTimer = setInterval(() => {
+      setMediaTick((current) => current + 1)
+    }, 2200)
+    return () => clearInterval(rotateTimer)
+  }, [])
+
+  const formatAuctionReplyTime = (date) =>
+    new Intl.DateTimeFormat('en-NG', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(date)
+  const getBuyNowAmount = (item) => {
+    const base = item.nextBid || item.currentBid
+    return Math.round(base * 1.1)
+  }
+  const mediaForAuction = (itemId, fallbackIndex) => {
+    const media = (auctionMediaBank[itemId] || []).filter((m) => m?.src)
+    if (media.length) return media
+    return [{ type: 'image', src: properties[fallbackIndex % properties.length]?.image }]
+  }
   const formatTimer = (seconds) => {
-    const elapsed = Math.floor((Date.now() - startRef.current) / 1000)
+    const elapsed = Math.floor((timerNowMs - startRef.current) / 1000)
     const safe = Math.max(0, seconds - elapsed)
     const h = String(Math.floor(safe / 3600)).padStart(2, '0')
     const m = String(Math.floor((safe % 3600) / 60)).padStart(2, '0')
@@ -81,6 +177,11 @@ function AuctionsPage() {
           : item,
       ),
     )
+    setLatestAuctionReply({
+      auctionTitle: selectedBidAuction.title,
+      amount,
+      at: new Date(),
+    })
     setBidModalState({ open: false, auctionId: null })
     setBidError('')
   }
@@ -130,6 +231,72 @@ function AuctionsPage() {
         </div>
       </section>
 
+      <section
+        className="relative overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 px-4 py-3 shadow-sm"
+      >
+        <div
+          className="pointer-events-none absolute inset-y-0 z-0"
+          style={{
+            left: `${replaySweepOffset}%`,
+            width: '68%',
+            background:
+              'linear-gradient(90deg, rgba(56,189,248,0) 0%, rgba(56,189,248,0.65) 40%, rgba(59,130,246,0.92) 50%, rgba(56,189,248,0.65) 60%, rgba(56,189,248,0) 100%)',
+            filter: 'blur(1px)',
+            opacity: 0.95,
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(14,116,144,0.1) 0%, rgba(37,99,235,0.14) 50%, rgba(79,70,229,0.1) 100%)',
+          }}
+        />
+        <div
+          className="pointer-events-none absolute left-0 top-0 z-0 h-1 rounded-full"
+          style={{
+            width: '36%',
+            transform: `translateX(${replaySweepOffset}%)`,
+            background: 'linear-gradient(90deg, rgba(34,211,238,0.95), rgba(59,130,246,1), rgba(99,102,241,0.95))',
+            boxShadow: '0 0 18px rgba(37,99,235,0.7)',
+          }}
+        />
+        <div
+          className="relative z-10"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+              <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+              Live Auction Replay
+            </p>
+            {latestAuctionReply?.at && <p className="text-[11px] text-slate-600">Updated {formatAuctionReplyTime(latestAuctionReply.at)}</p>}
+          </div>
+          <div className="mt-2 rounded-xl border border-white/80 bg-white/85 px-3 py-2">
+            <p className="text-sm font-semibold text-slate-900">
+              {activeReplay?.text || 'No live auction replay yet.'}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {liveReplayFeed.map((entry, idx) => (
+                <span
+                  key={entry.id}
+                  className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                    idx === replayIndex
+                      ? 'bg-slate-900 text-white'
+                      : entry.tone === 'amber'
+                        ? 'bg-amber-100 text-amber-800'
+                        : entry.tone === 'blue'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                  }`}
+                >
+                  {entry.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-4 xl:grid-cols-[1fr_260px]">
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -158,7 +325,24 @@ function AuctionsPage() {
             {filteredAuctions.map((item, index) => (
               <article key={item.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="relative">
-                  <img src={properties[index % properties.length]?.image} alt={item.title} className="h-32 w-full object-cover" />
+                  <div className="relative h-32 w-full overflow-hidden">
+                    {mediaForAuction(item.id, index).map((mediaItem, mediaIdx, allMedia) => {
+                      const activeIndex = mediaTick % allMedia.length
+                      const isActive = mediaIdx === activeIndex
+                      return (
+                        <div
+                          key={`${item.id}-${mediaItem.type}-${mediaIdx}`}
+                          className={`absolute inset-0 transition-opacity duration-700 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+                        >
+                          {mediaItem.type === 'video' ? (
+                            <video className="h-full w-full object-cover" src={mediaItem.src} autoPlay muted loop playsInline preload="metadata" />
+                          ) : (
+                            <img src={mediaItem.src} alt={item.title} className="h-full w-full object-cover" />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                   <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">{item.tag}</span>
                   <div className="absolute bottom-2 left-2 rounded bg-[#0a1738]/90 px-2 py-1 text-white">
                     <p className="text-[10px] text-blue-100">{item.timerLabel}</p>
@@ -177,6 +361,10 @@ function AuctionsPage() {
                       <p className="text-slate-400">{item.status === 'Upcoming' ? 'Auction Starts' : 'Next Minimum Bid'}</p>
                       <p className="font-semibold text-slate-700">{item.status === 'Upcoming' ? 'May 20, 2026' : formatNaira(item.nextBid)}</p>
                     </div>
+                  </div>
+                  <div className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-[11px]">
+                    <p className="text-emerald-700">Buy Now Amount</p>
+                    <p className="font-semibold text-emerald-800">{formatNaira(getBuyNowAmount(item))}</p>
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                     <div className="text-[11px] text-slate-500">

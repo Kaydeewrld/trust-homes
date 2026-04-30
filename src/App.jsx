@@ -1,11 +1,16 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import ExplorePage from './pages/ExplorePage'
 import AuctionsPage from './pages/AuctionsPage'
+import HotelsPage from './pages/HotelsPage'
+import HotelDetailPage from './pages/HotelDetailPage'
+import HomeCategoryPage from './pages/HomeCategoryPage'
 import PropertyDetailsPage from './pages/PropertyDetailsPage'
 import SavedPage from './pages/SavedPage'
 import MessagesPage from './pages/MessagesPage'
 import ProfilePage from './pages/ProfilePage'
+import AgentsPage from './pages/AgentsPage'
 import AddListingPage from './pages/AddListingPage'
 import ListingPreviewPage from './pages/ListingPreviewPage'
 import SignUpPage from './pages/SignUpPage'
@@ -45,6 +50,9 @@ import SiteFooter from './components/SiteFooter'
 
 function App() {
   const location = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [location.pathname])
   const isHome = location.pathname === '/'
   const isMessages = location.pathname === '/messages'
   const isProfile = location.pathname === '/profile'
@@ -127,10 +135,14 @@ function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/explore" element={<ExplorePage />} />
               <Route path="/auctions" element={<AuctionsPage />} />
+              <Route path="/hotels/place/:placeId" element={<HotelDetailPage />} />
+              <Route path="/hotels" element={<HotelsPage />} />
+              <Route path="/sections/:slug" element={<HomeCategoryPage />} />
               <Route path="/property/:id" element={<PropertyDetailsPage />} />
               <Route path="/saved" element={<SavedPage />} />
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/agents" element={<AgentsPage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />

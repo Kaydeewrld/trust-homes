@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext.jsx'
 import {
@@ -136,10 +136,45 @@ function SummaryCard({ title, subtitle, children }) {
   )
 }
 
+async function compressImageFile(file, { maxEdge = 1200, quality = 0.78 } = {}) {
+  const imageUrl = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('Invalid image'))
+      el.src = imageUrl
+    })
+    const scale = Math.min(1, maxEdge / Math.max(img.width || 1, img.height || 1))
+    const width = Math.max(1, Math.round((img.width || 1) * scale))
+    const height = Math.max(1, Math.round((img.height || 1) * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas is not supported')
+    ctx.drawImage(img, 0, 0, width, height)
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+    if (!blob) throw new Error('Image compression failed')
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = () => reject(new Error('Could not read compressed image'))
+      reader.readAsDataURL(blob)
+    })
+    return { dataUrl, bytes: blob.size }
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
+}
+
 export default function AgentProfilePage() {
   const toast = useToast()
-  const { token } = useAuth()
+  const { token, user, updateProfile } = useAuth()
   const [activeTab, setActiveTab] = useState('personal')
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [editProfileSubmitting, setEditProfileSubmitting] = useState(false)
+  const avatarInputRef = useRef(null)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [otpOpen, setOtpOpen] = useState(false)
   const [verificationOpen, setVerificationOpen] = useState(false)
@@ -173,9 +208,15 @@ export default function AgentProfilePage() {
     accountNumber: '0123456789',
     bankName: 'GTBank',
     bio: 'Experienced real estate agent specializing in helping clients find their dream homes and investment properties. Dedicated to providing excellent service and building long-term relationships.',
+    avatarUrl: '',
   })
 
   const completionPct = 85
+  const headerName = String(form.fullName || user?.displayName || 'Agent').trim()
+  const headerEmail = String(form.email || user?.email || '').trim()
+  const headerPhone = String(form.phone || user?.phone || '').trim()
+  const headerAvatar = String(form.avatarUrl || user?.avatarUrl || '').trim()
+  const headerInitial = (headerName || 'A').charAt(0).toUpperCase()
 
   const loadVerificationStatus = useCallback(async () => {
     if (!token) return
@@ -199,6 +240,18 @@ export default function AgentProfilePage() {
   }, [loadVerificationStatus])
 
   useEffect(() => {
+    if (!user) return
+    setForm((prev) => ({
+      ...prev,
+      fullName: user.displayName || prev.fullName,
+      email: user.email || prev.email,
+      phone: user.phone || prev.phone,
+      bio: user.bio || prev.bio,
+      avatarUrl: user.avatarUrl || prev.avatarUrl,
+    }))
+  }, [user])
+
+  useEffect(() => {
     if (!verificationOpen) return
     setVerificationForm({
       nin: verificationStatus.nin || '',
@@ -208,6 +261,30 @@ export default function AgentProfilePage() {
   }, [verificationOpen, verificationStatus])
 
   const update = (key, value) => setForm((s) => ({ ...s, [key]: value }))
+  const handleProfileImagePick = useCallback(async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Invalid image', 'Please choose an image file.')
+      return
+    }
+    try {
+      const compressed = await compressImageFile(file, { maxEdge: 1200, quality: 0.76 })
+      if (!compressed?.dataUrl) {
+        toast.error('Image error', 'Could not process selected image.')
+        return
+      }
+      if (compressed.bytes > 900 * 1024) {
+        toast.warning('Image too large', 'Please upload a smaller image (under 900KB).')
+        return
+      }
+      update('avatarUrl', compressed.dataUrl)
+    } catch {
+      toast.error('Image error', 'Could not process selected image.')
+    } finally {
+      event.target.value = ''
+    }
+  }, [toast])
   const outlineBtn =
     'inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50'
 
@@ -313,6 +390,36 @@ export default function AgentProfilePage() {
     }
   }, [loadVerificationStatus, token, toast, verificationForm])
 
+  const submitProfileEdit = useCallback(async () => {
+    if (!token) {
+      toast.warning('Session missing', 'Please sign in again.')
+      return
+    }
+    const displayName = String(form.fullName || '').trim()
+    const phone = String(form.phone || '').trim()
+    const avatarUrl = String(form.avatarUrl || '').trim()
+    const bio = String(form.bio || '').trim()
+    if (!displayName) {
+      toast.warning('Name required', 'Please enter your full name.')
+      return
+    }
+    setEditProfileSubmitting(true)
+    try {
+      await updateProfile({
+        displayName,
+        phone,
+        avatarUrl,
+        bio,
+      })
+      setEditProfileOpen(false)
+      toast.success('Profile updated', 'Your profile was updated successfully.')
+    } catch (e) {
+      toast.error('Update failed', e?.message || 'Could not update profile right now.')
+    } finally {
+      setEditProfileSubmitting(false)
+    }
+  }, [form.avatarUrl, form.bio, form.fullName, form.phone, toast, token, updateProfile])
+
   const progressRows = useMemo(
     () => [
       { label: 'Personal Information', done: true },
@@ -336,11 +443,17 @@ export default function AgentProfilePage() {
           <section className="overflow-hidden rounded-2xl border border-slate-100/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
             <div className="grid gap-4 p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-5">
               <div className="relative h-[86px] w-[86px] overflow-hidden rounded-full ring-2 ring-slate-100">
-                <img
-                  src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80"
-                  alt="Profile"
-                  className="h-full w-full object-cover"
-                />
+                {headerAvatar ? (
+                  <img
+                    src={headerAvatar}
+                    alt="Profile"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="grid h-full w-full place-items-center bg-indigo-100 text-[28px] font-bold text-indigo-700">
+                    {headerInitial}
+                  </span>
+                )}
                 <button
                   type="button"
                   className="absolute bottom-0 right-0 grid h-6 w-6 place-items-center rounded-full border border-white bg-indigo-600 text-white"
@@ -355,17 +468,25 @@ export default function AgentProfilePage() {
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-[24px] font-bold leading-none tracking-tight text-[#111827]">John Doe</h2>
-                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Verified Agent</span>
+                  <h2 className="text-[24px] font-bold leading-none tracking-tight text-[#111827]">{headerName}</h2>
+                  {verificationStatus.verified ? (
+                    <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                      Verified Agent
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-100">
+                      Verification Pending
+                    </span>
+                  )}
                 </div>
                 <div className="mt-2 space-y-1.5 text-[12px] text-slate-600">
                   <p className="flex items-center gap-1.5">
                     <span className="text-slate-400">@</span>
-                    johndoe@example.com
+                    {headerEmail || 'No email'}
                   </p>
                   <p className="flex items-center gap-1.5">
                     <span className="text-slate-400">✆</span>
-                    +234 801 234 5678
+                    {headerPhone || 'No phone'}
                   </p>
                   <p className="flex items-center gap-1.5">
                     <span className="text-slate-400">⌖</span>
@@ -381,8 +502,12 @@ export default function AgentProfilePage() {
                 <p className="text-slate-500">
                   <span className="font-semibold text-slate-700">Agent ID:</span> AGT-78645
                 </p>
-                <button type="button" className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-indigo-600 shadow-sm transition hover:bg-slate-50">
-                  View Public Profile
+                <button
+                  type="button"
+                  onClick={() => setEditProfileOpen(true)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-indigo-600 shadow-sm transition hover:bg-slate-50"
+                >
+                  Edit Profile
                 </button>
               </div>
             </div>
@@ -649,6 +774,86 @@ export default function AgentProfilePage() {
           <p className="text-[11px] leading-relaxed text-slate-500">
             Use an HTTPS image URL for your clear portrait photo. After submission, admin will review and approve your badge.
           </p>
+        </div>
+      </BaseModal>
+
+      <BaseModal
+        open={editProfileOpen}
+        onClose={() => setEditProfileOpen(false)}
+        title="Edit Profile"
+        subtitle="Update your personal details and bio."
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" className={outlineBtn} onClick={() => setEditProfileOpen(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={editProfileSubmitting}
+              onClick={submitProfileEdit}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#6366F1] px-5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {editProfileSubmitting ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleProfileImagePick}
+          />
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600">Profile Picture</label>
+            <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              {form.avatarUrl ? (
+                <img
+                  src={form.avatarUrl}
+                  alt=""
+                  className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-200"
+                />
+              ) : (
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-indigo-100 text-[18px] font-bold text-indigo-700 ring-2 ring-slate-200">
+                  {(form.fullName || 'A').trim().charAt(0).toUpperCase() || 'A'}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Upload Profile Picture
+              </button>
+            </div>
+          </div>
+          <InputField
+            label="Full Name"
+            value={form.fullName}
+            onChange={(v) => update('fullName', v)}
+          />
+          <InputField
+            label="Email Address"
+            value={form.email}
+            readOnly
+          />
+          <InputField
+            label="Phone Number"
+            value={form.phone}
+            onChange={(v) => update('phone', v)}
+          />
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600">Bio</label>
+            <textarea
+              value={form.bio}
+              onChange={(e) => update('bio', e.target.value)}
+              maxLength={500}
+              rows={4}
+              className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15"
+            />
+          </div>
         </div>
       </BaseModal>
 

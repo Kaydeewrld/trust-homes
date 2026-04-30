@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { adminListings as adminListingsSeed } from '../../data/adminSeed'
 import AdminModalShell from './AdminModalShell'
+import { useAdminAuth } from '../../context/AdminAuthContext'
+import { adminListingsModerationList, adminModerateListing } from '../../lib/api'
 
 const PAGE_SIZE = 6
 
@@ -37,9 +39,66 @@ function SectionTitle({ children }) {
   return <h3 className="mb-3 border-b border-slate-100 pb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{children}</h3>
 }
 
+function mapApiListingToAdminRow(l) {
+  const statusMap = {
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+    DRAFT: 'Paused',
+    SOLD: 'Paused',
+  }
+  const location = String(l?.location || '')
+  const cityArea = location.split(',')[0]?.trim() || location || '—'
+  const type = String(l?.purpose || 'Sale')
+  const propertyType = String(l?.propertyType || 'Residential')
+  const agentName = l?.ownerRole === 'AGENT' ? 'Verified Agent' : 'User Listing'
+  const status = statusMap[String(l?.status || '').toUpperCase()] || 'Pending'
+  const createdAt = l?.createdAt ? new Date(l.createdAt).toISOString().slice(0, 10) : todayIso()
+  return {
+    id: l.id,
+    slug: l.id,
+    title: l.title || 'Untitled Listing',
+    location,
+    cityArea,
+    type,
+    propertyType,
+    status,
+    priceDisplay: `₦${Number(l?.priceNgn || 0).toLocaleString('en-NG')}`,
+    agent: agentName,
+    agentId: l.ownerId || '—',
+    ownerName: agentName,
+    ownerEmail: '—',
+    views30d: 0,
+    bedrooms: Number(l?.bedrooms || 0),
+    bathrooms: Number(l?.bathrooms || 0),
+    areaSqm: Number(l?.areaSqm || 0),
+    furnished: false,
+    photosCount: Number(l?.mediaCount || 0),
+    videoTour: Number(l?.videoCount || 0) > 0,
+    amenitiesCount: 0,
+    mapHint: '—',
+    descriptionSnippet: l.description || 'No description provided.',
+    savesCount: 0,
+    leadsCount: 0,
+    agencyFeePercent: '10%',
+    serviceCharge: '—',
+    submittedAt: createdAt,
+    reviewedAt: '—',
+    publishedAt: status === 'Approved' ? createdAt : '—',
+    lastEditedAt: l?.updatedAt ? new Date(l.updatedAt).toISOString().slice(0, 10) : createdAt,
+    complianceFlags: status === 'Pending' ? ['Awaiting moderation review'] : [],
+    featuredRequest: false,
+    internalNotes: l?.verificationBadge ? 'Auto verified listing badge enabled.' : '',
+    isDistressSale: Boolean(l?.isDistressSale),
+    isInvestmentProperty: Boolean(l?.isInvestmentProperty),
+  }
+}
+
 export default function AdminListingsPage() {
   const toast = useToast()
+  const { adminToken } = useAdminAuth()
   const [listings, setListings] = useState(() => adminListingsSeed.map((r) => ({ ...r, complianceFlags: [...(r.complianceFlags || [])] })))
+  const [liveMode, setLiveMode] = useState(false)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -83,6 +142,21 @@ export default function AdminListingsPage() {
     setPage(1)
   }, [search, typeFilter, statusFilter, agentFilter])
 
+  useEffect(() => {
+    if (!adminToken) return
+    ;(async () => {
+      try {
+        const out = await adminListingsModerationList(adminToken, { status: 'ALL', take: 200, skip: 0 })
+        const rows = Array.isArray(out?.listings) ? out.listings.map(mapApiListingToAdminRow) : []
+        setListings(rows)
+        setLiveMode(true)
+      } catch (error) {
+        setLiveMode(false)
+        toast.info('Using demo listings', error?.message || 'Could not load backend listings queue.')
+      }
+    })()
+  }, [adminToken, toast])
+
   const pageRows = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE
     return filtered.slice(start, start + PAGE_SIZE)
@@ -116,6 +190,20 @@ export default function AdminListingsPage() {
     if (!confirm) return
     const { type, listing } = confirm
     const t = todayIso()
+    const liveStatus =
+      type === 'approve' ? 'APPROVED' : type === 'reject' ? 'REJECTED' : type === 'republish' ? 'APPROVED' : type === 'pause' ? 'PENDING' : null
+    if (liveMode && adminToken && liveStatus) {
+      ;(async () => {
+        try {
+          await adminModerateListing(adminToken, listing.id, liveStatus)
+          const out = await adminListingsModerationList(adminToken, { status: 'ALL', take: 200, skip: 0 })
+          const rows = Array.isArray(out?.listings) ? out.listings.map(mapApiListingToAdminRow) : []
+          if (rows.length) setListings(rows)
+        } catch (error) {
+          toast.error('Moderation failed', error?.message || 'Could not update listing status.')
+        }
+      })()
+    }
     if (type === 'approve') {
       setListings((prev) =>
         prev.map((x) =>

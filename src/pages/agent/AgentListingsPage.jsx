@@ -8,16 +8,19 @@ import AgentChangeVisibilityModal from './AgentChangeVisibilityModal'
 import AgentListingPerformanceModal from './AgentListingPerformanceModal'
 import AgentDeleteListingModal from './AgentDeleteListingModal'
 import { agentListingRows } from '../../data/agentListingsSeed'
+import { useAuth } from '../../context/AuthContext'
+import { useToast } from '../../context/ToastContext'
+import { listingsDelete, listingsMine } from '../../lib/api'
 
 const fmtPrice = (naira) => `₦${Number(naira).toLocaleString('en-NG')}`
 
 const tabs = [
-  { id: 'all', label: 'All Listings', count: 24 },
-  { id: 'active', label: 'Active', count: 15 },
-  { id: 'pending', label: 'Pending Verification', count: 6 },
-  { id: 'sold', label: 'Sold', count: 2 },
-  { id: 'drafts', label: 'Drafts', count: 1 },
-  { id: 'rejected', label: 'Rejected', count: 0 },
+  { id: 'all', label: 'All Listings' },
+  { id: 'active', label: 'Active' },
+  { id: 'pending', label: 'Pending Verification' },
+  { id: 'sold', label: 'Sold' },
+  { id: 'drafts', label: 'Drafts' },
+  { id: 'rejected', label: 'Rejected' },
 ]
 
 function listingThumbUrl(url) {
@@ -260,7 +263,10 @@ function RowActions({
 }
 
 export default function AgentListingsPage() {
+  const { token } = useAuth()
+  const toast = useToast()
   const [listingsData, setListingsData] = useState(() => [...agentListingRows])
+  const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
   const [viewing, setViewing] = useState(null)
   const [sharing, setSharing] = useState(null)
@@ -269,15 +275,25 @@ export default function AgentListingsPage() {
   const [performanceListing, setPerformanceListing] = useState(null)
   const [deleteListing, setDeleteListing] = useState(null)
 
-  const handleDeleteConfirm = useCallback((listing) => {
-    setListingsData((prev) => prev.filter((r) => r.id !== listing.id))
-    setDeleteListing(null)
-    if (viewing?.id === listing.id) setViewing(null)
-    if (sharing?.id === listing.id) setSharing(null)
-    if (duplicateListing?.id === listing.id) setDuplicateListing(null)
-    if (visibilityListing?.id === listing.id) setVisibilityListing(null)
-    if (performanceListing?.id === listing.id) setPerformanceListing(null)
-  }, [viewing, sharing, duplicateListing, visibilityListing, performanceListing])
+  const handleDeleteConfirm = useCallback(
+    async (listing) => {
+      if (!token || !listing?.id) return
+      try {
+        await listingsDelete(token, listing.id)
+        toast.success('Listing deleted', 'This listing has been removed.')
+        setListingsData((prev) => prev.filter((r) => r.id !== listing.id))
+        setDeleteListing(null)
+        if (viewing?.id === listing.id) setViewing(null)
+        if (sharing?.id === listing.id) setSharing(null)
+        if (duplicateListing?.id === listing.id) setDuplicateListing(null)
+        if (visibilityListing?.id === listing.id) setVisibilityListing(null)
+        if (performanceListing?.id === listing.id) setPerformanceListing(null)
+      } catch (err) {
+        toast.error('Could not delete listing', err?.message || 'Delete failed.')
+      }
+    },
+    [token, toast, viewing, sharing, duplicateListing, visibilityListing, performanceListing],
+  )
 
   const filtered = useMemo(() => {
     if (activeTab === 'all') return listingsData
@@ -291,6 +307,58 @@ export default function AgentListingsPage() {
     const key = map[activeTab]
     return listingsData.filter((r) => r.status === key)
   }, [activeTab, listingsData])
+
+  const tabCounts = useMemo(() => {
+    const out = { all: listingsData.length, active: 0, pending: 0, sold: 0, drafts: 0, rejected: 0 }
+    for (const row of listingsData) {
+      if (row.status === 'active') out.active += 1
+      if (row.status === 'pending') out.pending += 1
+      if (row.status === 'sold') out.sold += 1
+      if (row.status === 'draft') out.drafts += 1
+      if (row.status === 'rejected') out.rejected += 1
+    }
+    return out
+  }, [listingsData])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!token) return
+    const mapStatus = (status) => {
+      const s = String(status || '').toUpperCase()
+      if (s === 'APPROVED') return 'active'
+      if (s === 'PENDING') return 'pending'
+      if (s === 'SOLD') return 'sold'
+      if (s === 'REJECTED') return 'rejected'
+      return 'draft'
+    }
+    ;(async () => {
+      setLoading(true)
+      try {
+        const out = await listingsMine(token, { take: 200 })
+        const rows = Array.isArray(out?.listings)
+          ? out.listings.map((l, idx) => ({
+              id: String(l.id),
+              title: String(l.title || 'Untitled Listing'),
+              image: String(l.previewMediaUrl || l?.media?.[0]?.url || agentListingRows[0]?.image || ''),
+              location: String(l.location || 'Nigeria'),
+              status: mapStatus(l.status),
+              price: Number(l.priceNgn || 0),
+              views: Number(l.views || 0),
+              leads: Number(l.leads || 0),
+              dateAdded: String(l.createdAt || '').slice(0, 10) || `${idx + 1}`,
+            }))
+          : []
+        if (!cancelled) setListingsData(rows)
+      } catch (err) {
+        if (!cancelled) toast.error('Could not load listings', err?.message || 'Failed to fetch your listings.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, toast])
 
   return (
     <div className="flex w-full min-w-0 flex-col px-4 py-3 text-slate-800 md:px-6 md:py-4">
@@ -352,7 +420,7 @@ export default function AgentListingsPage() {
                     isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {tab.count}
+                  {tabCounts[tab.id] || 0}
                 </span>
               </button>
             )
@@ -427,7 +495,7 @@ export default function AgentListingsPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-3 py-10 text-center text-[13px] text-slate-500">
-                    No listings in this category.
+                    {loading ? 'Loading your listings...' : 'No listings in this category.'}
                   </td>
                 </tr>
               ) : (

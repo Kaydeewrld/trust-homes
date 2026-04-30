@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import AgentDashboardSidebar from '../components/agent/AgentDashboardSidebar'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
+import { messagesConversations } from '../lib/api'
 
 export default function AgentDashboardLayout() {
   const location = useLocation()
   const toast = useToast()
+  const { user, token, logout } = useAuth()
   /** Full-height shell handles its own scrolling (no double scrollbar with window). */
   const outletIsScrollLocked = location.pathname === '/agent/leads'
   const [activePopover, setActivePopover] = useState(null)
@@ -36,11 +39,46 @@ export default function AgentDashboardLayout() {
     { id: 'n3', title: 'Listing approved', detail: 'Waterfront Penthouse is now live · 3h ago' },
   ]
 
-  const messageItems = [
-    { id: 'm1', name: 'Chioma Eze', snippet: 'Can we schedule a viewing tomorrow?' },
-    { id: 'm2', name: 'Ibrahim Bello', snippet: 'Is the listing still available?' },
-    { id: 'm3', name: 'Nkechi Obi', snippet: 'Thanks, I have made the payment.' },
-  ]
+  const [liveConversations, setLiveConversations] = useState([])
+
+  useEffect(() => {
+    if (!token) {
+      setLiveConversations([])
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      const out = await messagesConversations(token)
+      if (cancelled) return
+      setLiveConversations(Array.isArray(out?.conversations) ? out.conversations : [])
+    }
+    void run().catch(() => {})
+    const timer = setInterval(() => {
+      void run().catch(() => {})
+    }, 15000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [token, location.pathname])
+
+  const messageItems = useMemo(
+    () =>
+      liveConversations.slice(0, 6).map((c) => ({
+        id: c.id,
+        name: c.counterpart?.displayName || 'Unknown',
+        snippet: c.lastMessage || 'No messages yet',
+      })),
+    [liveConversations],
+  )
+  const unreadMessageCount = useMemo(
+    () => liveConversations.reduce((sum, c) => sum + Number(c?.unreadCount || 0), 0),
+    [liveConversations],
+  )
+  const accountName = user?.displayName || user?.email?.split('@')?.[0] || 'Agent'
+  const accountSubtitle = 'Agent Account'
+  const avatarUrl = typeof user?.avatarUrl === 'string' ? user.avatarUrl.trim() : ''
+  const avatarInitial = String(accountName || 'A').trim().charAt(0).toUpperCase() || 'A'
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-stretch bg-[#F9FAFB] font-agent text-[14px] leading-normal text-slate-800 antialiased">
@@ -123,9 +161,11 @@ export default function AgentDashboardLayout() {
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
                   <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" strokeLinejoin="round" />
                 </svg>
-                <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  6
-                </span>
+                {unreadMessageCount > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                  </span>
+                ) : null}
               </button>
               {activePopover === 'messages' ? (
                 <div className="absolute right-0 top-[calc(100%+0.55rem)] z-50 w-[320px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_18px_40px_-18px_rgba(15,23,42,0.35)]">
@@ -133,14 +173,18 @@ export default function AgentDashboardLayout() {
                     <p className="text-[13px] font-bold text-[#111827]">Recent Messages</p>
                   </div>
                   <ul className="max-h-[320px] overflow-y-auto">
-                    {messageItems.map((m) => (
-                      <li key={m.id} className="border-b border-slate-100 last:border-0">
-                        <Link to="/agent/leads" className="block px-4 py-3 transition hover:bg-slate-50">
-                          <p className="text-[13px] font-semibold text-slate-800">{m.name}</p>
-                          <p className="mt-0.5 text-[12px] text-slate-500">{m.snippet}</p>
-                        </Link>
-                      </li>
-                    ))}
+                    {messageItems.length ? (
+                      messageItems.map((m) => (
+                        <li key={m.id} className="border-b border-slate-100 last:border-0">
+                          <Link to="/agent/leads" className="block px-4 py-3 transition hover:bg-slate-50">
+                            <p className="text-[13px] font-semibold text-slate-800">{m.name}</p>
+                            <p className="mt-0.5 line-clamp-2 text-[12px] text-slate-500">{m.snippet}</p>
+                          </Link>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="px-4 py-6 text-center text-[12px] text-slate-500">No recent messages yet.</li>
+                    )}
                   </ul>
                 </div>
               ) : null}
@@ -148,13 +192,8 @@ export default function AgentDashboardLayout() {
 
             <div className="relative flex items-center gap-3">
               <div className="hidden text-right sm:block">
-                <p className="text-[13px] font-semibold leading-tight text-[#111827]">John Doe</p>
-                <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-semibold text-emerald-600">
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Verified Agent
-                </p>
+                <p className="text-[13px] font-semibold leading-tight text-[#111827]">{accountName}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{accountSubtitle}</p>
               </div>
               <button
                 type="button"
@@ -163,17 +202,23 @@ export default function AgentDashboardLayout() {
                 onClick={() => setActivePopover((p) => (p === 'account' ? null : 'account'))}
                 className={`relative rounded-full outline-none transition ${activePopover === 'account' ? 'ring-2 ring-indigo-400/60 ring-offset-2' : ''}`}
               >
-                <img
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=96&q=80"
-                  alt=""
-                  className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                />
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
+                  />
+                ) : (
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-indigo-100 text-[13px] font-bold text-indigo-700 ring-2 ring-slate-100">
+                    {avatarInitial}
+                  </span>
+                )}
               </button>
               {activePopover === 'account' ? (
                 <div className="absolute right-0 top-[calc(100%+0.55rem)] z-50 w-[220px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_18px_40px_-18px_rgba(15,23,42,0.35)]">
                   <div className="border-b border-slate-100 px-4 py-3">
-                    <p className="text-[13px] font-bold text-[#111827]">John Doe</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Verified Agent</p>
+                    <p className="text-[13px] font-bold text-[#111827]">{accountName}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{accountSubtitle}</p>
                   </div>
                   <div className="p-1.5">
                     <Link to="/agent/profile" className="block rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50">
@@ -182,9 +227,13 @@ export default function AgentDashboardLayout() {
                     <Link to="/agent/settings" className="block rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50">
                       Settings
                     </Link>
-                    <Link to="/login" className="block rounded-xl px-3 py-2 text-[13px] font-medium text-red-600 transition hover:bg-red-50">
+                    <button
+                      type="button"
+                      onClick={logout}
+                      className="block w-full rounded-xl px-3 py-2 text-left text-[13px] font-medium text-red-600 transition hover:bg-red-50"
+                    >
                       Log out
-                    </Link>
+                    </button>
                   </div>
                 </div>
               ) : null}

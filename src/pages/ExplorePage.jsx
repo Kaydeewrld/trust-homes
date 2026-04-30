@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import CustomDropdown from '../components/CustomDropdown'
 import PropertyMarketingSections from '../components/PropertyMarketingSections'
-import { properties } from '../data/properties'
+import { properties as demoProperties } from '../data/properties'
+import { listingsList } from '../lib/api'
+import { mapApiListingToProperty } from '../utils/listingAdapters'
 
 const initialFilters = {
   type: 'All',
@@ -31,6 +33,7 @@ function ExplorePage() {
   const [selectedMapPropertyId, setSelectedMapPropertyId] = useState('')
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [likedPropertyIds, setLikedPropertyIds] = useState([])
+  const [remoteProperties, setRemoteProperties] = useState([])
   const minBound = 0
   const maxBound = 50000000
   const sliderStep = 100000
@@ -47,6 +50,32 @@ function ExplorePage() {
       current.includes(propertyId) ? current.filter((id) => id !== propertyId) : [...current, propertyId],
     )
   }
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const out = await listingsList({ take: 80, skip: 0 })
+        const incoming = Array.isArray(out?.listings) ? out.listings.map((item, idx) => mapApiListingToProperty(item, idx)) : []
+        if (!cancelled) setRemoteProperties(incoming)
+      } catch {
+        if (!cancelled) setRemoteProperties([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const properties = useMemo(() => {
+    const dedup = new Set()
+    const merged = [...remoteProperties, ...demoProperties]
+    return merged.filter((item) => {
+      if (dedup.has(item.id)) return false
+      dedup.add(item.id)
+      return true
+    })
+  }, [remoteProperties])
 
   const filteredProperties = useMemo(() => {
     const result = properties.filter((property) => {
@@ -108,6 +137,26 @@ function ExplorePage() {
   }
   const chipBtn = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 transition hover:bg-slate-50'
   const sectionTitle = 'mb-2 flex items-center justify-between font-medium text-slate-700'
+  const verifiedBadge = (property) =>
+    property?.isVerifiedListing ? (
+      <span className="absolute right-2 top-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+        Verified
+      </span>
+    ) : null
+  const paymentStatusBadge = (property) => {
+    const s = String(property?.listingStatus || '').toUpperCase()
+    if (s === 'SOLD') {
+      return (
+        <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 bg-rose-700/95 py-1 text-center text-[11px] font-extrabold tracking-[0.25em] text-white">
+          SOLD
+        </span>
+      )
+    }
+    if (s === 'APPROVED') {
+      return <span className="absolute left-2 top-2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">Available</span>
+    }
+    return null
+  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -126,7 +175,7 @@ function ExplorePage() {
           <article className="rounded-xl border border-blue-100 bg-blue-50 p-3">
             <p className="text-sm font-semibold text-slate-800">Not sure what you&apos;re looking for?</p>
             <p className="mt-1 text-xs text-slate-500">Let our agents help you find the perfect property.</p>
-            <button onClick={() => navigate('/profile')} className="mt-3 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white">Talk to an Agent</button>
+            <button onClick={() => navigate('/agents')} className="mt-3 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white">Talk to an Agent</button>
           </article>
         </div>
       </div>
@@ -362,7 +411,7 @@ function ExplorePage() {
                 <CustomDropdown
                   value={filters.type}
                   onChange={(value) => setFilters((current) => ({ ...current, type: value }))}
-                  options={['All', 'House', 'Apartment', 'Office', 'Commercial']}
+                  options={['All', 'House', 'Apartment', 'Hotel', 'Office', 'Commercial']}
                   className="min-w-[120px]"
                 />
                 <CustomDropdown
@@ -401,7 +450,7 @@ function ExplorePage() {
 
           {viewMode === 'Grid' ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {propertiesForGrid.map((property, index) => (
+              {propertiesForGrid.map((property) => (
                 <article
                   key={property.id}
                   onClick={() => navigate(`/property/${property.id}`)}
@@ -409,8 +458,10 @@ function ExplorePage() {
                 >
                   <div className="relative">
                     <img src={property.image} alt={property.title} className="h-36 w-full object-cover" />
-                    <span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-0.5 text-[11px] text-white">
-                      {index % 4 === 0 ? 'For Rent' : index % 4 === 1 ? 'For Sale' : index % 4 === 2 ? 'Office Space' : 'Short Stay'}
+                    {verifiedBadge(property)}
+                    {paymentStatusBadge(property)}
+                    <span className="absolute left-2 top-8 rounded-full bg-blue-600 px-2 py-0.5 text-[11px] text-white">
+                      {property.purpose || 'For Sale'}
                     </span>
                     <button
                       type="button"

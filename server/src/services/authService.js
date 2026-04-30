@@ -8,6 +8,7 @@ import { sendTransactionAlertEmails } from './transactionEmailService.js'
 import { createId } from '../utils/createId.js'
 
 const UserRole = { USER: 'USER', AGENT: 'AGENT' }
+let userProfileTableReadyPromise = null
 
 const USER_SELECT = `SELECT id, email,
   "passwordHash" AS ph,
@@ -15,6 +16,7 @@ const USER_SELECT = `SELECT id, email,
   phone,
   role,
   "avatarUrl" AS av,
+  (SELECT up.bio FROM "UserProfile" up WHERE up."userId" = "User".id LIMIT 1) AS bio,
   "googleSub" AS gs,
   "emailVerified" AS ev,
   "createdAt" AS ca,
@@ -30,6 +32,7 @@ function mapUserRow(row) {
     phone: row.phone,
     role: row.role,
     avatarUrl: row.av,
+    bio: row.bio ?? null,
     googleSub: row.gs,
     emailVerified: row.ev,
     createdAt: row.ca,
@@ -44,6 +47,7 @@ function publicUser(u) {
     displayName: u.displayName,
     role: u.role,
     avatarUrl: u.avatarUrl,
+    bio: u.bio ?? null,
     phone: u.phone,
     emailVerified: Boolean(u.emailVerified),
     createdAt: u.createdAt,
@@ -51,13 +55,33 @@ function publicUser(u) {
 }
 
 async function selectUserByEmail(email) {
+  await ensureUserProfileTableReady()
   const { rows } = await query(`${USER_SELECT} FROM "User" WHERE email = $1 LIMIT 1`, [email])
   return mapUserRow(rows[0])
 }
 
 async function selectUserById(id) {
+  await ensureUserProfileTableReady()
   const { rows } = await query(`${USER_SELECT} FROM "User" WHERE id = $1 LIMIT 1`, [id])
   return mapUserRow(rows[0])
+}
+
+async function ensureUserProfileTable() {
+  await query(`CREATE TABLE IF NOT EXISTS "UserProfile" (
+    "userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    "bio" TEXT,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`)
+}
+
+async function ensureUserProfileTableReady() {
+  if (!userProfileTableReadyPromise) {
+    userProfileTableReadyPromise = ensureUserProfileTable().catch((err) => {
+      userProfileTableReadyPromise = null
+      throw err
+    })
+  }
+  await userProfileTableReadyPromise
 }
 
 export async function register({ email, password, displayName, role, phone, agencyName, licenseId }) {
@@ -323,6 +347,7 @@ export async function changePasswordWithOtp({ userId, currentPassword, newPasswo
 }
 
 export async function getMe(userId) {
+  await ensureUserProfileTable()
   const user = await selectUserById(userId)
   if (!user) {
     const err = new Error('User not found')
@@ -331,4 +356,32 @@ export async function getMe(userId) {
     throw err
   }
   return publicUser(user)
+}
+
+export async function updateMe(userId, { displayName, phone, avatarUrl, bio }) {
+  await ensureUserProfileTable()
+  const user = await selectUserById(userId)
+  if (!user) {
+    const err = new Error('User not found')
+    err.status = 404
+    err.expose = true
+    throw err
+  }
+  const nextName = String(displayName ?? user.displayName ?? '').trim() || user.email.split('@')[0] || 'Member'
+  const nextPhone = phone == null ? user.phone : String(phone).trim() || null
+  const nextAvatar = avatarUrl == null ? user.avatarUrl : String(avatarUrl).trim() || null
+  const nextBio = bio == null ? user.bio : String(bio).trim()
+  await query(
+    `UPDATE "User" SET "displayName" = $2, phone = $3, "avatarUrl" = $4, "updatedAt" = NOW() WHERE id = $1`,
+    [userId, nextName, nextPhone, nextAvatar],
+  )
+  await query(
+    `INSERT INTO "UserProfile" ("userId", bio, "updatedAt")
+     VALUES ($1, $2, NOW())
+     ON CONFLICT ("userId")
+     DO UPDATE SET bio = EXCLUDED.bio, "updatedAt" = NOW()`,
+    [userId, nextBio || null],
+  )
+  const refreshed = await selectUserById(userId)
+  return publicUser(refreshed)
 }
